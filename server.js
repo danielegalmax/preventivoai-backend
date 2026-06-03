@@ -239,6 +239,7 @@ app.post('/api/upload-logo', express.json(), async (req, res) => {
       res.status(500).json({ error: err.message })
     }
   })
+
 // ── POST /api/genera-pdf ───────────────────────────────────────────
 app.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
