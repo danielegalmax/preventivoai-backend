@@ -14,7 +14,9 @@ app.use(express.json())
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null
 
 // ── Verifica JWT Supabase ─────────────────────────────────────────
 async function verificaUtente(req, res) {
