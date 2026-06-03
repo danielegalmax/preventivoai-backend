@@ -214,15 +214,12 @@ app.get('/api/trascrizioni', async (req, res) => {
   res.json(data)
 })
 // ── POST /api/upload-logo ──────────────────────────────────────────
-app.post('/api/upload-logo', async (req, res) => {
+app.post('/api/upload-logo', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
 
-  let body = ''
-  req.on('data', chunk => { body += chunk })
-  req.on('end', async () => {
-    try {
-      const { logo_base64, mime_type } = JSON.parse(body)
+  try {
+    const { logo_base64, mime_type } = req.body
       
       const { data, error } = await supabase.storage
         .from('loghi')
@@ -242,34 +239,29 @@ app.post('/api/upload-logo', async (req, res) => {
       res.status(500).json({ error: err.message })
     }
   })
-})
-
 // ── POST /api/genera-pdf ───────────────────────────────────────────
-app.post('/api/genera-pdf', async (req, res) => {
+app.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
 
-  let body = ''
-  req.on('data', chunk => { body += chunk })
-  req.on('end', async () => {
-    try {
-      const { preventivo_id, testo, template, versione_padre_id } = JSON.parse(body)
+  try {
+    const { preventivo_id, testo, template, versione_padre_id } = req.body
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito')
-        .eq('id', user.id)
-        .single()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito')
+      .eq('id', user.id)
+      .single()
 
-      const colore = profile?.colore_brand || '0D1B2A'
-      const logo = profile?.logo_url || null
-      const nome = profile?.nome_azienda || 'Azienda'
-      const citta = profile?.citta || ''
-      const piva = profile?.piva || ''
-      const telefono = profile?.telefono || ''
-      const tmpl = template || profile?.template_preferito || 'pulito'
+    const colore = profile?.colore_brand || '0D1B2A'
+    const logo = profile?.logo_url || null
+    const nome = profile?.nome_azienda || 'Azienda'
+    const citta = profile?.citta || ''
+    const piva = profile?.piva || ''
+    const telefono = profile?.telefono || ''
+    const tmpl = template || profile?.template_preferito || 'pulito'
 
-      const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore })
+    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore })
 
       // Se c'è una versione padre, aggiorna is_ultimo
       if (versione_padre_id) {
@@ -288,8 +280,8 @@ app.post('/api/genera-pdf', async (req, res) => {
     } catch (err) {
       res.status(500).json({ error: err.message })
     }
-  })
-})
+  }
+)
 
 // ── Funzione generaHTML ────────────────────────────────────────────
 function generaHTML(testo, template, dati) {
