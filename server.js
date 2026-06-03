@@ -1,4 +1,8 @@
 require('dotenv').config()
+const OpenAI = require('openai')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
 const express = require('express')
 const cors = require('cors')
 const Anthropic = require('@anthropic-ai/sdk')
@@ -10,6 +14,7 @@ app.use(express.json())
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 // ── Verifica JWT Supabase ─────────────────────────────────────────
 async function verificaUtente(req, res) {
@@ -142,6 +147,68 @@ app.get('/health', (req, res) => {
 })
 
 const PORT = process.env.PORT || 3001
+// ── POST /api/trascrivi ────────────────────────────────────────────
+app.post('/api/trascrivi', async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  let body = ''
+  req.on('data', chunk => { body += chunk })
+  req.on('end', async () => {
+    try {
+      const { audio, durata } = JSON.parse(body)
+      if (!audio) return res.status(400).json({ error: 'Audio mancante' })
+
+      // Converti base64 in file temporaneo
+      const tmpPath = path.join(os.tmpdir(), `audio_${Date.now()}.m4a`)
+      fs.writeFileSync(tmpPath, Buffer.from(audio, 'base64'))
+
+      // Trascrivi con Whisper
+      const trascrizione = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(tmpPath),
+        model: 'whisper-1',
+        language: 'it',
+        response_format: 'text'
+      })
+
+      fs.unlinkSync(tmpPath)
+
+      // Salva in Supabase
+      const { data, error } = await supabase
+        .from('trascrizioni')
+        .insert({
+          user_id: user.id,
+          testo: trascrizione,
+          titolo: `Chiamata ${new Date().toLocaleDateString('it-IT')}`,
+          durata_secondi: durata || 0,
+        })
+        .select()
+        .single()
+
+      if (error) return res.status(500).json({ error: error.message })
+      res.json({ trascrizione, id: data.id })
+
+    } catch (err) {
+      console.error('Errore Whisper:', err)
+      res.status(500).json({ error: err.message })
+    }
+  })
+})
+
+// ── GET /api/trascrizioni ──────────────────────────────────────────
+app.get('/api/trascrizioni', async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  const { data, error } = await supabase
+    .from('trascrizioni')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (error) return res.status(500).json({ error: error.message })
+  res.json(data)
+})
 app.listen(PORT, () => {
   console.log(`✅ PreventivoAI backend attivo su porta ${PORT}`)
 })
