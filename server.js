@@ -85,11 +85,11 @@ TONO: ${profile.tono || 'professionale e diretto'}
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
 2. Se mancano informazioni importanti, fai UNA domanda alla volta — la più urgente
-3. Prima di fare il recap, chiedi sempre: "Vuoi applicare uno sconto o condizioni particolari? Sei in regime forfettario (senza IVA) o ordinario?"
-4. Quando hai tutte le informazioni, scrivi SEMPRE esattamente RECAP_PRONTO su una riga, poi il riepilogo
-5. NON scrivere mai PREVENTIVO_PRONTO senza che l'utente abbia prima confermato il recap
-6. Solo dopo la conferma esplicita dell'utente, scrivi PREVENTIVO_PRONTO su una riga, poi il preventivo
-
+3. Prima di fare il recap, chiedi sempre in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Sei in regime forfettario (senza IVA) o ordinario?"
+4. Dopo la risposta, scrivi esattamente: "Perfetto! Confermo il preventivo con questi dati, vuoi procedere?" e aspetta conferma
+5. Solo dopo la conferma esplicita, scrivi RECAP_PRONTO su una riga, poi il riepilogo
+6. NON scrivere mai PREVENTIVO_PRONTO senza che l'utente abbia prima visto il recap e confermato
+7. Solo dopo che l'utente clicca "Genera preventivo" nel recap, scrivi PREVENTIVO_PRONTO su una riga, poi il preventivo
 FORMATO RECAP (dopo RECAP_PRONTO):
 ---
 📋 RIEPILOGO LAVORO
@@ -390,7 +390,7 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
     }).join('')
     return `<table style="width:100%;border-collapse:collapse;font-family:${fontFamily};margin-bottom:20px"><thead><tr style="background:${sfondoHeader}"><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:left;letter-spacing:1px;text-transform:uppercase">Servizio</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Prezzo</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Totale</th></tr></thead><tbody>${righe}</tbody></table>`
   }
-  
+
   function riepilogoTotali(align, fontFamily, coloreTesto, coloreAccento, sfondo) {
     if (!p.totale && !p.imponibile) return ''
     return `<div style="display:flex;justify-content:${align};margin-top:8px"><div style="background:${sfondo};border-radius:8px;padding:16px 20px;min-width:220px;font-family:${fontFamily}">${p.imponibile ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:${coloreTesto};margin-bottom:6px"><span>Imponibile</span><span>${p.imponibile}</span></div>` : ''}${p.iva ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:${coloreTesto};margin-bottom:10px"><span>${p.iva.split(':')[0]}</span><span>${p.iva.split(':')[1] ? p.iva.split(':')[1].trim() : ''}</span></div>` : ''}${p.totale ? `<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:${coloreAccento};border-top:1px solid ${coloreTesto}20;padding-top:8px"><span>TOTALE</span><span>${p.totale}</span></div>` : ''}</div></div>`
