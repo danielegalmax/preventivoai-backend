@@ -414,3 +414,5 @@ const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`✅ PreventivoAI backend attivo su porta ${PORT}`)
 })
+
+// v2.1
