@@ -294,7 +294,20 @@ app.post('/api/elabora-servizi', express.json(), async (req, res) => {
 // ── Parser testo preventivo ────────────────────────────────────────
 function parsaPreventivo(testo) {
   const righe = testo.split('\n').map(r => r.trim()).filter(r => r)
-  let titolo = '', data = '', validita = '30 giorni', problema = '', voci = [], imponibile = '', iva = '', totale = '', note = '', contatti = '', fase = 'header'
+  
+  let titolo = ''
+  let data = ''
+  let validita = '30 giorni'
+  let problema = ''
+  let voci = []
+  let imponibile = ''
+  let iva = ''
+  let totale = ''
+  let note = ''
+  let contatti = ''
+  let fase = 'header'
+  let servizioCorrente = null
+
   for (const riga of righe) {
     if (riga.startsWith('PREVENTIVO')) { titolo = riga; fase = 'header'; continue }
     if (riga.startsWith('Data:')) {
@@ -305,29 +318,57 @@ function parsaPreventivo(testo) {
       continue
     }
     if (riga.startsWith('Problema:')) { problema = riga.replace('Problema:', '').trim(); continue }
+    if (riga === 'SERVIZI:' || riga === 'SERVIZI') { fase = 'servizi'; continue }
+    
+    // Nuovo formato SERVIZIO/DETTAGLI/PREZZO
+    if (riga.startsWith('SERVIZIO:') && fase === 'servizi') {
+      if (servizioCorrente) voci.push(servizioCorrente)
+      servizioCorrente = { nome: riga.replace('SERVIZIO:', '').trim(), dettagli: [], prezzo: '', totale: '' }
+      continue
+    }
+    if (riga === 'DETTAGLI:' && servizioCorrente) { continue }
+    if (riga.startsWith('- ') && servizioCorrente && fase === 'servizi') {
+      servizioCorrente.dettagli.push(riga.substring(2).trim())
+      continue
+    }
+    if (riga.startsWith('PREZZO:') && servizioCorrente) {
+      servizioCorrente.prezzo = riga.replace('PREZZO:', '').trim().replace('€', '')
+      servizioCorrente.totale = servizioCorrente.prezzo
+      continue
+    }
+
+    // Vecchio formato VOCI per compatibilità
     if (riga === 'VOCI:' || riga === 'VOCI') { fase = 'voci'; continue }
     if (riga.startsWith('- ') && fase === 'voci') {
       const testo_voce = riga.substring(2)
       const matchCompleto = testo_voce.match(/^(.+?)\s*[—-]\s*€?([\d.,]+)(?:\/\w+)?\s*=\s*€?([\d.,]+)/)
       if (matchCompleto) {
-        voci.push({ nome: matchCompleto[1].trim(), prezzo: matchCompleto[2].trim(), totale: matchCompleto[3].trim() })
+        voci.push({ nome: matchCompleto[1].trim(), dettagli: [], prezzo: matchCompleto[2].trim(), totale: matchCompleto[3].trim() })
       } else {
         const matchSemplice = testo_voce.match(/^(.+?):\s*€?([\d.,]+)/)
         if (matchSemplice) {
-          voci.push({ nome: matchSemplice[1].trim(), prezzo: matchSemplice[2].trim(), totale: matchSemplice[2].trim() })
+          voci.push({ nome: matchSemplice[1].trim(), dettagli: [], prezzo: matchSemplice[2].trim(), totale: matchSemplice[2].trim() })
         } else {
-          voci.push({ nome: testo_voce, prezzo: '', totale: '' })
+          voci.push({ nome: testo_voce, dettagli: [], prezzo: '', totale: '' })
         }
       }
       continue
     }
-    if (riga.startsWith('Imponibile:')) { imponibile = riga.replace('Imponibile:', '').trim(); fase = 'totali'; continue }
-    if (riga.startsWith('IVA')) { iva = riga; fase = 'totali'; continue }
-    if (riga.startsWith('TOTALE:')) { totale = riga.replace('TOTALE:', '').trim(); fase = 'totali'; continue }
+
+    if (riga === 'RIEPILOGO:') { 
+      if (servizioCorrente) { voci.push(servizioCorrente); servizioCorrente = null }
+      fase = 'totali'
+      continue 
+    }
+    if (riga.startsWith('Imponibile:')) { imponibile = riga.replace('Imponibile:', '').trim(); continue }
+    if (riga.startsWith('IVA')) { iva = riga; continue }
+    if (riga.startsWith('TOTALE:')) { totale = riga.replace('TOTALE:', '').trim(); continue }
     if (riga.startsWith('Note:')) { note = riga.replace('Note:', '').trim(); continue }
     if (riga.startsWith('Contatti:')) { contatti = riga.replace('Contatti:', '').trim(); continue }
-    if (riga.startsWith('─') || riga.startsWith('-─') || riga === '---') continue
+    if (riga.startsWith('─') || riga === '---') continue
   }
+
+  if (servizioCorrente) voci.push(servizioCorrente)
   return { titolo, data, validita, problema, voci, imponibile, iva, totale, note, contatti }
 }
 
@@ -339,12 +380,17 @@ function generaHTML(testo, template, dati) {
   const p = parsaPreventivo(testo)
   const coloreHex = colore.startsWith('#') ? colore : `#${colore}`
 
-  function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrimario, testoSecondario, fontFamily) {
+function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrimario, testoSecondario, fontFamily) {
     if (p.voci.length === 0) return `<div style="font-family:${fontFamily};font-size:13px;white-space:pre-wrap;color:${testoPrimario};line-height:1.9">${testo}</div>`
-    const righe = p.voci.map((v, i) => `<tr style="background:${i % 2 === 0 ? sfondoRiga : sfondoAlt}"><td style="padding:10px 14px;font-size:13px;color:${testoPrimario}">${v.nome}</td><td style="padding:10px 14px;font-size:13px;color:${testoSecondario};text-align:right">${v.prezzo ? '€' + v.prezzo : ''}</td><td style="padding:10px 14px;font-size:13px;color:${testoPrimario};text-align:right;font-weight:600">${v.totale ? '€' + v.totale : ''}</td></tr>`).join('')
-    return `<table style="width:100%;border-collapse:collapse;font-family:${fontFamily};margin-bottom:20px"><thead><tr style="background:${sfondoHeader}"><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:left;letter-spacing:1px;text-transform:uppercase">Descrizione</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Prezzo</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Totale</th></tr></thead><tbody>${righe}</tbody></table>`
+    const righe = p.voci.map((v, i) => {
+      const dettagliHtml = v.dettagli && v.dettagli.length > 0
+        ? `<div style="margin-top:5px">${v.dettagli.map(d => `<div style="font-size:11px;color:${testoSecondario};padding-left:4px">• ${d}</div>`).join('')}</div>`
+        : ''
+      return `<tr style="background:${i % 2 === 0 ? sfondoRiga : sfondoAlt}"><td style="padding:10px 14px;font-size:13px;color:${testoPrimario};vertical-align:top"><strong>${v.nome}</strong>${dettagliHtml}</td><td style="padding:10px 14px;font-size:13px;color:${testoSecondario};text-align:right;vertical-align:top">${v.prezzo ? '€' + v.prezzo : ''}</td><td style="padding:10px 14px;font-size:13px;color:${testoPrimario};text-align:right;font-weight:600;vertical-align:top">${v.totale ? '€' + v.totale : ''}</td></tr>`
+    }).join('')
+    return `<table style="width:100%;border-collapse:collapse;font-family:${fontFamily};margin-bottom:20px"><thead><tr style="background:${sfondoHeader}"><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:left;letter-spacing:1px;text-transform:uppercase">Servizio</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Prezzo</th><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:right;letter-spacing:1px;text-transform:uppercase">Totale</th></tr></thead><tbody>${righe}</tbody></table>`
   }
-
+  
   function riepilogoTotali(align, fontFamily, coloreTesto, coloreAccento, sfondo) {
     if (!p.totale && !p.imponibile) return ''
     return `<div style="display:flex;justify-content:${align};margin-top:8px"><div style="background:${sfondo};border-radius:8px;padding:16px 20px;min-width:220px;font-family:${fontFamily}">${p.imponibile ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:${coloreTesto};margin-bottom:6px"><span>Imponibile</span><span>${p.imponibile}</span></div>` : ''}${p.iva ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:${coloreTesto};margin-bottom:10px"><span>${p.iva.split(':')[0]}</span><span>${p.iva.split(':')[1] ? p.iva.split(':')[1].trim() : ''}</span></div>` : ''}${p.totale ? `<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:${coloreAccento};border-top:1px solid ${coloreTesto}20;padding-top:8px"><span>TOTALE</span><span>${p.totale}</span></div>` : ''}</div></div>`
