@@ -276,7 +276,16 @@ app.post('/api/genera-pdf', express.json(), async (req, res) => {
       .select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito')
       .eq('id', user.id)
       .single()
+const { data: servizi } = await supabase
+  .from('servizi')
+  .select('nome, descrizione, costo, unita')
+  .eq('user_id', user.id)
+  .order('ordine', { ascending: true })
 
+const serviziTesto = servizi && servizi.length > 0
+  ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
+  : profile?.listino || 'Nessun listino specificato'
+  
     const colore = profile?.colore_brand || '0D1B2A'
     const logo = profile?.logo_url || null
     const nome = profile?.nome_azienda || 'Azienda'
