@@ -137,7 +137,8 @@ REGOLE:
 - VIETATO: scrivere PREVENTIVO_PRONTO prima di aver scritto RECAP_PRONTO e ricevuto conferma esplicita.
 - Solo dopo che l'utente scrive "sì", "ok", "genera", "confermo" o simili, scrivi PREVENTIVO_PRONTO.
 - Se l'utente non conferma o vuole modificare qualcosa, aggiorna il recap e chiedi di nuovo conferma.
-- Tono: ${profile.tono || 'professionale e diretto'}.`  try {
+- Tono: ${profile.tono || 'professionale e diretto'}.` 
+try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
