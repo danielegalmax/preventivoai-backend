@@ -7,6 +7,7 @@ const express = require('express')
 const cors = require('cors')
 const Anthropic = require('@anthropic-ai/sdk')
 const { createClient } = require('@supabase/supabase-js')
+const { Readable } = require('stream')
 
 const app = express()
 app.use(cors())
@@ -375,6 +376,36 @@ function generaHTML(testo, template, dati) {
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body>${templates[template] || templates.pulito}</body></html>`
 }
+// ── POST /api/salva-pdf ────────────────────────────────────────────
+app.post('/api/salva-pdf', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  try {
+    const { pdf_base64 } = req.body
+    if (!pdf_base64) return res.status(400).json({ error: 'PDF mancante' })
+
+    const pdfBuffer = Buffer.from(pdf_base64, 'base64')
+    const fileName = `${user.id}/${Date.now()}.pdf`
+
+    const { error } = await supabase.storage
+      .from('preventivi-pdf')
+      .upload(fileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: false
+      })
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    const { data: urlData } = supabase.storage
+      .from('preventivi-pdf')
+      .getPublicUrl(fileName)
+
+    res.json({ pdf_url: urlData.publicUrl })
+  } catch (err) { // <--- Sostituito con (err)
+    res.status(500).json({ error: err.message })
+  }
+})
 app.listen(PORT, () => {
   console.log(`✅ PreventivoAI backend attivo su porta ${PORT}`)
 })
