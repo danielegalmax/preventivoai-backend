@@ -183,8 +183,7 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 3001
 // ── POST /api/trascrivi ────────────────────────────────────────────
-app.post('/api/trascrivi', async (req, res) => {
-  const user = await verificaUtente(req, res)
+app.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) => {  const user = await verificaUtente(req, res)
   if (!user) return
 
   let body = ''
