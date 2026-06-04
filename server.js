@@ -78,7 +78,7 @@ const { data: servizi } = await supabase
   const serviziTesto = servizi && servizi.length > 0
   ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
   : profile?.listino || 'Nessun listino specificato'
-  
+
 const system = `Sei l'assistente commerciale di ${profile.nome_azienda || 'questa azienda'}, ${profile.categoria || 'artigiano'} a ${profile.citta || 'Italia'}.
 
 Il tuo compito è raccogliere le informazioni necessarie per generare un preventivo professionale, poi chiedere conferma prima di generarlo.
@@ -91,9 +91,9 @@ TONO: ${profile.tono || 'professionale e diretto'}
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
 2. Se mancano informazioni importanti, fai UNA domanda alla volta — la più urgente
-3. Quando hai abbastanza informazioni, scrivi esattamente RECAP_PRONTO su una riga, poi il riepilogo
-4. Dopo la conferma dell'utente, scrivi esattamente PREVENTIVO_PRONTO su una riga, poi il preventivo
-
+3. Quando hai abbastanza informazioni, scrivi SEMPRE esattamente RECAP_PRONTO su una riga, poi il riepilogo
+4. NON scrivere mai PREVENTIVO_PRONTO senza che l'utente abbia prima confermato il recap
+5. Solo dopo la conferma esplicita dell'utente, scrivi PREVENTIVO_PRONTO su una riga, poi il preventivo
 FORMATO RECAP (dopo RECAP_PRONTO):
 ---
 📋 RIEPILOGO LAVORO
@@ -133,6 +133,9 @@ REGOLE:
 - Usa sempre i servizi del listino. Non inventare prezzi.
 - Fai massimo una domanda per messaggio.
 - Sii conciso e diretto.
+- NON generare mai il preventivo direttamente senza prima mostrare il recap.
+- Prima scrivi SEMPRE RECAP_PRONTO con il riepilogo e aspetta conferma esplicita.
+- Solo dopo che l'utente conferma (sì, ok, genera, confermo o simili), scrivi PREVENTIVO_PRONTO.
 - Tono: ${profile.tono || 'professionale e diretto'}.`
   try {
     const response = await anthropic.messages.create({
