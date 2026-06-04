@@ -75,6 +75,10 @@ const { data: servizi } = await supabase
   .eq('user_id', user.id)
   .order('ordine', { ascending: true })
 
+  const serviziTesto = servizi && servizi.length > 0
+  ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
+  : profile?.listino || 'Nessun listino specificato'
+  
 const system = `Sei l'assistente commerciale di ${profile.nome_azienda || 'questa azienda'}, ${profile.categoria || 'artigiano'} a ${profile.citta || 'Italia'}.
 
 Il tuo compito è raccogliere le informazioni necessarie per generare un preventivo professionale, poi chiedere conferma prima di generarlo.
@@ -285,7 +289,7 @@ const { data: servizi } = await supabase
 const serviziTesto = servizi && servizi.length > 0
   ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
   : profile?.listino || 'Nessun listino specificato'
-  
+
     const colore = profile?.colore_brand || '0D1B2A'
     const logo = profile?.logo_url || null
     const nome = profile?.nome_azienda || 'Azienda'
