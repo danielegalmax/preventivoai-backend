@@ -91,10 +91,10 @@ TONO: ${profile.tono || 'professionale e diretto'}
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
 2. Se mancano informazioni importanti, fai UNA domanda alla volta — la più urgente
-3. Quando hai abbastanza informazioni, scrivi SEMPRE esattamente RECAP_PRONTO su una riga, poi il riepilogo
-4. NON scrivere mai PREVENTIVO_PRONTO senza che l'utente abbia prima confermato il recap
-5. Solo dopo la conferma esplicita dell'utente, scrivi PREVENTIVO_PRONTO su una riga, poi il preventivo
-FORMATO RECAP (dopo RECAP_PRONTO):
+3. Prima di fare il recap, chiedi sempre: "Vuoi applicare uno sconto o condizioni particolari?"
+4. Quando hai tutte le informazioni, scrivi SEMPRE esattamente RECAP_PRONTO su una riga, poi il riepilogo
+5. NON scrivere mai PREVENTIVO_PRONTO senza che l'utente abbia prima confermato il recap
+6. Solo dopo la conferma esplicita dell'utente, scrivi PREVENTIVO_PRONTO su una riga, poi il preventivoFORMATO RECAP (dopo RECAP_PRONTO):
 ---
 📋 RIEPILOGO LAVORO
 
