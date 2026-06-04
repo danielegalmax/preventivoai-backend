@@ -157,6 +157,55 @@ REGOLE:
   }
 })
 
+// ── POST /api/converti-recap ──────────────────────────────────────
+app.post('/api/converti-recap', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const { recap } = req.body
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nome_azienda, citta, piva, telefono')
+      .eq('id', user.id)
+      .single()
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `Converti questo riepilogo in un preventivo formattato. Rispondi SOLO con il preventivo, nient'altro, nessuna introduzione.
+
+RIEPILOGO:
+${recap}
+
+FORMATO OBBLIGATORIO:
+PREVENTIVO — ${profile?.nome_azienda || 'Azienda'}
+Data: ${new Date().toLocaleDateString('it-IT')}  |  Validità: 30 giorni
+
+SERVIZI:
+
+SERVIZIO: [nome servizio]
+DETTAGLI:
+- [dettaglio 1]
+- [dettaglio 2]
+PREZZO: €XX
+
+RIEPILOGO:
+Imponibile: €XX
+IVA 22%: €XX
+─────────────────
+TOTALE: €XX
+
+Se il regime è forfettario ometti IVA e scrivi solo TOTALE.`
+      }]
+    })
+    res.json({ preventivo: response.content[0].text.trim() })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── POST /api/salva-preventivo ────────────────────────────────────
 app.post('/api/salva-preventivo', async (req, res) => {
   const user = await verificaUtente(req, res)
