@@ -96,9 +96,8 @@ FORMATO RECAP (dopo RECAP_PRONTO):
 
 Cliente: [nome se disponibile]
 Lavoro: [descrizione breve]
-Voci previste:
-- [servizio 1]: €XX
-- [servizio 2]: €XX
+Servizi previsti:
+SERVIZIO: [nome] — DETTAGLI: [inclusi breve] — PREZZO: €XX
 
 Totale stimato: €XX
 
@@ -110,20 +109,29 @@ FORMATO PREVENTIVO (dopo PREVENTIVO_PRONTO):
 PREVENTIVO — ${profile.nome_azienda || 'Azienda'}
 Data: ${new Date().toLocaleDateString('it-IT')}  |  Validità: 30 giorni
 
-Problema: [descrizione breve]
+SERVIZI:
 
-VOCI:
-- [descrizione]: €XX
-- [descrizione]: €XX
+SERVIZIO: [nome servizio]
+DETTAGLI:
+- [voce inclusa 1]
+- [voce inclusa 2]
+PREZZO: €XX
 
+RIEPILOGO:
 Imponibile: €XX
 IVA 22%: €XX
 ─────────────────
 TOTALE: €XX
 
-Note: [breve nota utile]
+Note: [breve nota se necessaria]
 Contatti: ${profile.nome_azienda || 'Azienda'} · ${profile.citta || 'Italia'}
 ---
+
+REGOLE FORMATO:
+- Ogni servizio ha SEMPRE SERVIZIO:, DETTAGLI: e PREZZO:
+- I DETTAGLI sono sempre una lista con trattini
+- Se c'è un bundle aggiungilo come servizio separato es. "Bundle: Foto + Video"
+- Il RIEPILOGO viene sempre alla fine
 
 REGOLE:
 - Usa sempre i servizi del listino. Non inventare prezzi.
