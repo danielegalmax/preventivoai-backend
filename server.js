@@ -11,7 +11,7 @@ const { Readable } = require('stream')
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '50mb' }))
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -183,50 +183,33 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 3001
 // ── POST /api/trascrivi ────────────────────────────────────────────
-app.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) => {  const user = await verificaUtente(req, res)
+app.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) => {
+  const user = await verificaUtente(req, res)
   if (!user) return
 
-  let body = ''
-  req.on('data', chunk => { body += chunk })
-  req.on('end', async () => {
-    try {
-      const { audio, durata } = JSON.parse(body)
-      if (!audio) return res.status(400).json({ error: 'Audio mancante' })
+  try {
+    const { audio, durata } = req.body
+    if (!audio) return res.status(400).json({ error: 'Audio mancante' })
 
-      // Converti base64 in file temporaneo
-      const tmpPath = path.join(os.tmpdir(), `audio_${Date.now()}.m4a`)
-      fs.writeFileSync(tmpPath, Buffer.from(audio, 'base64'))
+    const buffer = Buffer.from(audio, 'base64')
+    const tempPath = `/tmp/audio_${Date.now()}.m4a`
+    require('fs').writeFileSync(tempPath, buffer)
 
-      // Trascrivi con Whisper
-      const trascrizione = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tmpPath),
-        model: 'whisper-1',
-        language: 'it',
-        response_format: 'text'
-      })
+    const { default: OpenAI } = require('openai')
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-      fs.unlinkSync(tmpPath)
+    const trascrizione = await openai.audio.transcriptions.create({
+      file: require('fs').createReadStream(tempPath),
+      model: 'whisper-1',
+      language: 'it'
+    })
 
-      // Salva in Supabase
-      const { data, error } = await supabase
-        .from('trascrizioni')
-        .insert({
-          user_id: user.id,
-          testo: trascrizione,
-          titolo: `Chiamata ${new Date().toLocaleDateString('it-IT')}`,
-          durata_secondi: durata || 0,
-        })
-        .select()
-        .single()
-
-      if (error) return res.status(500).json({ error: error.message })
-      res.json({ trascrizione, id: data.id })
-
-    } catch (err) {
-      console.error('Errore Whisper:', err)
-      res.status(500).json({ error: err.message })
-    }
-  })
+    require('fs').unlinkSync(tempPath)
+    res.json({ trascrizione: trascrizione.text })
+  } catch (err) {
+    console.error('Errore trascrizione:', err)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ── GET /api/trascrizioni ──────────────────────────────────────────
