@@ -62,19 +62,29 @@ app.post('/api/chat', async (req, res) => {
     return res.status(400).json({ error: 'messages mancanti' })
   }
 
-  // Carica profilo artigiano dal DB
+  // Carica profilo dal DB
   const { data: profile } = await supabase
-    .from('profiles')
-    .select('nome_azienda, categoria, citta, listino, tono')
-    .eq('id', user.id)
-    .single()
+  .from('profiles')
+  .select('nome_azienda, citta, piva, telefono, listino, tono, categoria')
+  .eq('id', user.id)
+  .single()
+
+const { data: servizi } = await supabase
+  .from('servizi')
+  .select('nome, descrizione, costo, unita')
+  .eq('user_id', user.id)
+  .order('ordine', { ascending: true })
+
+const serviziTesto = servizi && servizi.length > 0
+  ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
+  : profile?.listino || 'Nessun listino specificato'
 
   if (!profile) return res.status(404).json({ error: 'Profilo non trovato' })
 
-  const system = `Sei l'assistente commerciale di ${profile.nome_azienda || 'questa azienda'}, ${profile.categoria || 'artigiano'} a ${profile.citta || 'Italia'}.
+const system = `Sei l'assistente commerciale di ${profile.nome_azienda || 'questa azienda'}, ${profile.categoria || 'artigiano'} a ${profile.citta || 'Italia'}.
 
-LISTINO PREZZI:
-${profile.listino || 'Listino non ancora configurato'}
+SERVIZI E LISTINO PREZZI:
+${serviziTesto}
 
 TONO: ${profile.tono || 'professionale e diretto'}
 
@@ -112,16 +122,13 @@ Contatti: ${profile.nome_azienda || 'Azienda'} · ${profile.citta || 'Italia'}
       system,
       messages
     })
-
     const reply = response.content[0].text
     res.json({ reply })
-
   } catch (err) {
     console.error('Errore Claude:', err)
     res.status(500).json({ error: 'Errore AI: ' + err.message })
   }
 })
-
 // ── POST /api/salva-preventivo ────────────────────────────────────
 app.post('/api/salva-preventivo', async (req, res) => {
   const user = await verificaUtente(req, res)
