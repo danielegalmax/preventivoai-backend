@@ -445,6 +445,49 @@ app.post('/api/salva-pdf', express.json(), async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+// ── POST /api/elabora-servizi ──────────────────────────────────────
+app.post('/api/elabora-servizi', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  try {
+    const { testo } = req.body
+    if (!testo) return res.status(400).json({ error: 'Testo mancante' })
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `Analizza questo listino prezzi e restituisci un array JSON di servizi strutturati.
+        
+Listino:
+${testo}
+
+Rispondi SOLO con un array JSON valido, niente altro. Formato:
+[
+  {
+    "nome": "Nome servizio",
+    "descrizione": "Breve descrizione opzionale",
+    "costo": 300,
+    "unita": "cad"
+  }
+]
+
+Per unita usa: cad, ora, giorno, mq, ml, set, progetto
+Se il costo non è specificato, metti null.
+Se la descrizione non è chiara, metti stringa vuota.`
+      }]
+    })
+
+    const testo_risposta = response.content[0].text.trim()
+    const clean = testo_risposta.replace(/```json|```/g, '').trim()
+    const servizi = JSON.parse(clean)
+    res.json({ servizi })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 app.listen(PORT, () => {
   console.log(`✅ PreventivoAI backend attivo su porta ${PORT}`)
 })
