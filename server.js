@@ -52,7 +52,7 @@ app.post('/api/chat', async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
 
-  const { messages } = req.body
+  const { messages, cliente_id } = req.body
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages mancanti' })
   }
@@ -69,6 +69,19 @@ app.post('/api/chat', async (req, res) => {
     .eq('user_id', user.id)
     .order('ordine', { ascending: true })
 
+  // Carica dati cliente se disponibile
+  let clienteTesto = ''
+  if (cliente_id) {
+    const { data: cliente } = await supabase
+      .from('clienti')
+      .select('nome, telefono, email, indirizzo, note')
+      .eq('id', cliente_id)
+      .single()
+    if (cliente) {
+      clienteTesto = `\nCLIENTE PER QUESTO PREVENTIVO:\n- Nome: ${cliente.nome}${cliente.telefono ? '\n- Telefono: ' + cliente.telefono : ''}${cliente.email ? '\n- Email: ' + cliente.email : ''}${cliente.indirizzo ? '\n- Indirizzo: ' + cliente.indirizzo : ''}${cliente.note ? '\n- Note: ' + cliente.note : ''}`
+    }
+  }
+
   const serviziTesto = servizi && servizi.length > 0
     ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' — €' + s.costo + '/' + s.unita : ''}`).join('\n')
     : profile?.listino || 'Nessun listino specificato'
@@ -78,7 +91,13 @@ app.post('/api/chat', async (req, res) => {
 Il tuo compito è raccogliere le informazioni necessarie per generare un preventivo professionale, poi chiedere conferma prima di generarlo.
 
 SERVIZI E LISTINO PREZZI:
-${serviziTesto}
+${serviziTesto}${clienteTesto ? '\n' + clienteTesto : ''}
+
+ISTRUZIONI CLIENTE:
+- Se conosci già il cliente (cliente_id fornito), menziona il suo nome e NON chiedere per chi è
+- Se NON conosci il cliente, durante la raccolta info chiedi "Per chi è questo preventivo?" in modo naturale
+- Quando l'utente menziona un nome, rispondi NORMALMENTE — il sistema cercherà automaticamente il cliente in rubrica
+- NON usare tag speciali o codici — pensa solo al contenuto del preventivo
 
 TONO: ${profile.tono || 'professionale e diretto'}
 
@@ -201,6 +220,42 @@ Se il regime è forfettario ometti IVA e scrivi solo TOTALE.`
       }]
     })
     res.json({ preventivo: response.content[0].text.trim() })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── POST /api/cerca-cliente ───────────────────────────────────────
+app.post('/api/cerca-cliente', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const { nome } = req.body
+    if (!nome) return res.json({ risultati: [] })
+    const { data } = await supabase
+      .from('clienti')
+      .select('id, nome, telefono, email, indirizzo, note')
+      .eq('user_id', user.id)
+      .ilike('nome', `%${nome}%`)
+      .limit(5)
+    res.json({ risultati: data || [] })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── POST /api/crea-cliente-da-chat ────────────────────────────────
+app.post('/api/crea-cliente-da-chat', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const { nome, telefono, email, indirizzo } = req.body
+    const { data, error } = await supabase
+      .from('clienti')
+      .insert({ user_id: user.id, nome, telefono: telefono || null, email: email || null, indirizzo: indirizzo || null })
+      .select().single()
+    if (error) return res.status(500).json({ error: error.message })
+    res.json({ cliente: data })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
