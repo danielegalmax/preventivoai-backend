@@ -96,8 +96,9 @@ ${serviziTesto}${clienteTesto ? '\n' + clienteTesto : ''}
 ISTRUZIONI CLIENTE:
 - Se conosci già il cliente (cliente_id fornito), menziona il suo nome e NON chiedere per chi è
 - Se NON conosci il cliente, durante la raccolta info chiedi "Per chi è questo preventivo?" in modo naturale
-- Quando l'utente menziona un nome, rispondi NORMALMENTE — il sistema cercherà automaticamente il cliente in rubrica
-- NON usare tag speciali o codici — pensa solo al contenuto del preventivo
+- Se riesci a identificare il nome del cliente dal messaggio dell'utente, scrivi CLIENTE:[nome] su una riga all'inizio della tua risposta (prima di qualsiasi altro testo). Esempio: CLIENTE:Mario Rossi
+- Scrivi CLIENTE:[nome] solo se sei ragionevolmente sicuro che sia il nome del destinatario del preventivo, non un nome generico
+- Se il cliente_id è già fornito, NON scrivere CLIENTE:
 
 TONO: ${profile.tono || 'professionale e diretto'}
 
@@ -333,7 +334,7 @@ app.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { testo, template, versione_padre_id } = req.body
+    const { testo, template, versione_padre_id, cliente_id } = req.body
     const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
     const colore = profile?.colore_brand || '0D1B2A'
     const logo = profile?.logo_url || null
@@ -345,13 +346,22 @@ app.post('/api/genera-pdf', express.json(), async (req, res) => {
     const notePagamento = profile?.note_pagamento || ''
     const firmaNome = profile?.firma_nome || ''
 
+    // Carica dati cliente se presente
+    let clienteDati = null
+    if (cliente_id) {
+      const { data: cl } = await supabase.from('clienti')
+        .select('nome, telefono, email, indirizzo')
+        .eq('id', cliente_id).single()
+      if (cl) clienteDati = cl
+    }
+
     // Incrementa contatore preventivi
     const nuovoContatore = (profile?.contatore_preventivi || 0) + 1
     await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
     const anno = new Date().getFullYear()
     const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
 
-    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo })
+    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati })
     if (versione_padre_id) {
       await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
     }
@@ -486,7 +496,7 @@ function parsaPreventivo(testo) {
 
 // ── Funzione generaHTML ────────────────────────────────────────────
 function generaHTML(testo, template, dati) {
-  const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo } = dati
+  const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati } = dati
   const data = new Date().toLocaleDateString('it-IT')
   const logoHtml = logo ? `<img src="${logo}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ''
   const p = parsaPreventivo(testo)
@@ -509,7 +519,7 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
   }
 
   const templates = {
-    pulito: `<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',Arial,sans-serif;padding:48px;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.6}</style><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid ${coloreHex}"><div>${logoHtml ? `<div style="margin-bottom:10px">${logoHtml}</div>` : ''}<div style="font-size:20px;font-weight:700;color:${coloreHex};letter-spacing:-0.5px">${nome}</div><div style="font-size:11px;color:#888;margin-top:4px;line-height:1.8">${citta}${piva ? ' · P.IVA ' + piva : ''}${telefono ? ' · ' + telefono : ''}</div></div><div style="text-align:right;font-size:11px;color:#888;line-height:1.8"><div style="font-size:22px;font-weight:700;color:${coloreHex};letter-spacing:-0.5px;margin-bottom:6px">PREVENTIVO</div>${numeroPreventivo ? `<div style="font-size:10px;color:#aaa;margin-bottom:4px;letter-spacing:1px">${numeroPreventivo}</div>` : ""}<div>Data: <strong>${data}</strong></div><div>Validità: ${p.validita || '30 giorni'}</div></div></div>${p.problema ? `<div style="background:#f8f9fa;border-left:3px solid ${coloreHex};padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px;font-size:13px;color:#444">${p.problema}</div>` : ''}${tabellaVoci(coloreHex, '#fff', '#fff', '#f8f9fa', '#1a1a2e', '#666', "'Inter',Arial,sans-serif")}${riepilogoTotali('flex-end', "'Inter',Arial,sans-serif", '#666', coloreHex, '#f8f9fa')}${p.note ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e"><strong>Note:</strong> ${p.note}</div>` : ''}${notePagamento ? `<div style="margin-top:12px;padding:12px 16px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#6B7280">💳 ${notePagamento}</div>` : ''}${firmaNome ? `<div style="margin-top:24px;text-align:right;font-size:20px;color:#374151;font-family:'Dancing Script',cursive;font-style:italic">${firmaNome}</div>` : ''}<div style="margin-top:36px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#aaa;display:flex;justify-content:space-between"><span>${nome}${citta ? ' · ' + citta : ''}</span><span>Documento generato il ${data}</span></div>`,
+    pulito: `<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',Arial,sans-serif;padding:48px;color:#1a1a2e;background:#fff;font-size:13px;line-height:1.6}</style><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid ${coloreHex}"><div>${logoHtml ? `<div style="margin-bottom:10px">${logoHtml}</div>` : ''}<div style="font-size:20px;font-weight:700;color:${coloreHex};letter-spacing:-0.5px">${nome}</div><div style="font-size:11px;color:#888;margin-top:4px;line-height:1.8">${citta}${piva ? ' · P.IVA ' + piva : ''}${telefono ? ' · ' + telefono : ''}</div></div><div style="text-align:right;font-size:11px;color:#888;line-height:1.8"><div style="font-size:22px;font-weight:700;color:${coloreHex};letter-spacing:-0.5px;margin-bottom:6px">PREVENTIVO</div>${numeroPreventivo ? `<div style="font-size:10px;color:#aaa;margin-bottom:4px;letter-spacing:1px">${numeroPreventivo}</div>` : ""}<div>Data: <strong>${data}</strong></div><div>Validità: ${p.validita || '30 giorni'}</div></div></div>${clienteDati ? `<div style="margin-bottom:24px;padding:14px 16px;background:#f8f9fa;border-radius:8px;border-left:3px solid ${coloreHex}"><div style="font-size:10px;font-weight:700;color:#aaa;letter-spacing:1px;margin-bottom:6px">INTESTATO A</div><div style="font-size:14px;font-weight:600;color:#1a1a2e">${clienteDati.nome}</div>${clienteDati.indirizzo ? `<div style="font-size:12px;color:#6B7280;margin-top:2px">${clienteDati.indirizzo}</div>` : ''}${clienteDati.email ? `<div style="font-size:12px;color:#6B7280;margin-top:1px">${clienteDati.email}</div>` : ''}${clienteDati.telefono ? `<div style="font-size:12px;color:#6B7280;margin-top:1px">${clienteDati.telefono}</div>` : ''}</div>` : ''}${p.problema ? `<div style="background:#f8f9fa;border-left:3px solid ${coloreHex};padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px;font-size:13px;color:#444">${p.problema}</div>` : ''}${tabellaVoci(coloreHex, '#fff', '#fff', '#f8f9fa', '#1a1a2e', '#666', "'Inter',Arial,sans-serif")}${riepilogoTotali('flex-end', "'Inter',Arial,sans-serif", '#666', coloreHex, '#f8f9fa')}${p.note ? `<div style="margin-top:24px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e"><strong>Note:</strong> ${p.note}</div>` : ''}${notePagamento ? `<div style="margin-top:12px;padding:12px 16px;background:#f8f9fa;border-radius:6px;font-size:12px;color:#6B7280">💳 ${notePagamento}</div>` : ''}${firmaNome ? `<div style="margin-top:24px;text-align:right;font-size:20px;color:#374151;font-family:'Dancing Script',cursive;font-style:italic">${firmaNome}</div>` : ''}<div style="margin-top:36px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#aaa;display:flex;justify-content:space-between"><span>${nome}${citta ? ' · ' + citta : ''}</span><span>Documento generato il ${data}</span></div>`,
 
     classico: `<style>@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Serif+4:wght@300;400;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Source Serif 4',Georgia,serif;padding:48px;color:#1a1a1a;background:#fff}</style><div style="text-align:center;border:2px solid ${coloreHex};padding:24px;margin-bottom:32px;border-radius:4px">${logoHtml ? `<div style="margin-bottom:12px">${logoHtml}</div>` : ''}<div style="font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700;color:${coloreHex}">${nome}</div><div style="font-size:11px;color:#666;margin-top:6px">${citta}${piva ? ' · P.IVA ' + piva : ''}${telefono ? ' · ' + telefono : ''}</div></div><div style="display:flex;justify-content:space-between;margin-bottom:28px"><div style="font-family:'Playfair Display',Georgia,serif;font-size:20px;font-weight:700;color:${coloreHex};letter-spacing:2px;text-transform:uppercase;border-bottom:2px solid ${coloreHex};padding-bottom:6px">Preventivo</div><div style="text-align:right;font-size:11px;color:#666;line-height:1.9">${numeroPreventivo ? `<div style="font-size:10px;color:#aaa;letter-spacing:1px;margin-bottom:2px">${numeroPreventivo}</div>` : ""}Data: ${data}<br>Validità: ${p.validita || '30 giorni'}</div></div>${p.problema ? `<div style="font-style:italic;color:#555;margin-bottom:20px;font-size:13px;padding:10px 0;border-bottom:1px solid #eee">${p.problema}</div>` : ''}${tabellaVoci(coloreHex, '#fff', '#fff', '#fafafa', '#1a1a1a', '#555', "'Source Serif 4',Georgia,serif")}${riepilogoTotali('flex-end', "'Source Serif 4',Georgia,serif", '#555', coloreHex, '#f9f9f9')}${p.note ? `<div style="margin-top:20px;font-size:12px;color:#666;font-style:italic"><strong>Note:</strong> ${p.note}</div>` : ''}${notePagamento ? `<div style="margin-top:12px;padding:12px 16px;background:#f9f9f9;border-radius:6px;font-size:12px;color:#6B7280">💳 ${notePagamento}</div>` : ""}${firmaNome ? `<div style="margin-top:24px;text-align:right;font-size:20px;color:#555;font-family:'Dancing Script',cursive;font-style:italic">${firmaNome}</div>` : ""}<div style="margin-top:36px;text-align:center;font-size:11px;color:#999;border-top:1px solid #ddd;padding-top:12px;font-style:italic">${nome} · ${citta} · Validità 30 giorni</div>`,
 
