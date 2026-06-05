@@ -347,6 +347,7 @@ app.post('/api/genera-pdf', express.json(), async (req, res) => {
     const firmaNome = profile?.firma_nome || ''
 
     // Carica dati cliente se presente
+    console.log('cliente_id ricevuto:', cliente_id)
     let clienteDati = null
     if (cliente_id) {
       const { data: cl } = await supabase.from('clienti')
