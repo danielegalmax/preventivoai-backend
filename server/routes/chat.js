@@ -60,15 +60,16 @@ TONO: ${profile.tono || 'professionale e diretto'}
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
 2. Se mancano informazioni importanti, fai UNA domanda alla volta — la piu' urgente
-3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Vuoi aggiungere l'IVA al totale?"
+3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Vuoi aggiungere l'IVA al totale, applicare la ritenuta d'acconto (20%), o nessuno dei due?"
 4. Dopo la risposta, scrivi UN SOLO messaggio del tipo: "Perfetto! Ho tutto quello che mi serve. Posso procedere con il preventivo?" — NON scrivere ancora RECAP_PRONTO, aspetta la risposta dell'utente
 5. Solo dopo che l'utente conferma (scrive "si'", "ok", "vai", "procedi" o simili), scrivi RECAP_PRONTO su una riga, poi il riepilogo
 6. NON scrivere mai PREVENTIVO_PRONTO direttamente dalla chat — il preventivo viene generato solo dal bottone nell'app
 7. Se l'utente vuole modificare qualcosa dopo il recap, torna al punto 2
 
-REGOLE IVA:
+REGOLE IVA E RITENUTA:
 - Se l'utente dice che vuole l'IVA: includi Imponibile, IVA 22% e TOTALE nel riepilogo
-- Se l'utente dice che NON vuole l'IVA, o non risponde, o dice "forfettario": scrivi solo TOTALE senza IVA
+- Se l'utente dice che vuole la ritenuta d'acconto: includi TOTALE LORDO, Ritenuta d'acconto 20% e TOTALE NETTO nel riepilogo
+- Se l'utente dice che NON vuole ne' IVA ne' ritenuta, o non risponde, o dice "forfettario": scrivi solo TOTALE senza IVA
 - NON assumere mai il regime fiscale — dipende solo da quello che dice l'utente
 
 FORMATO RECAP (dopo RECAP_PRONTO):
@@ -85,7 +86,12 @@ Imponibile: EUR XX
 IVA 22%: EUR XX
 TOTALE: EUR XX
 
-[Se NO IVA:]
+[Se ritenuta d'acconto:]
+Totale lordo: EUR XX
+Ritenuta d'acconto 20%: -EUR XX
+TOTALE NETTO: EUR XX
+
+[Se NO IVA e NO ritenuta:]
 TOTALE: EUR XX
 
 Vuoi che generi il preventivo con questi dati, o vuoi aggiungere/modificare qualcosa?
@@ -111,7 +117,13 @@ IVA 22%: EUR XX
 ─────────────────
 TOTALE: EUR XX
 
-[Se NO IVA:]
+[Se ritenuta d'acconto:]
+Totale lordo: EUR XX
+Ritenuta d'acconto 20%: -EUR XX
+─────────────────
+TOTALE NETTO: EUR XX
+
+[Se NO IVA e NO ritenuta:]
 TOTALE: EUR XX
 
 Note: [breve nota se necessaria]
@@ -193,7 +205,12 @@ TOTALE: EUR XX
 [Se nel riepilogo NON c'e' l'IVA:]
 TOTALE: EUR XX
 
-REGOLA IMPORTANTE: includi l'IVA SOLO se e' presente nel riepilogo originale. Non aggiungerla se non c'e'.`
+REGOLA IMPORTANTE: includi l'IVA SOLO se e' presente nel riepilogo originale. Non aggiungerla se non c'e'.
+Se nel riepilogo c'e' la ritenuta d'acconto:
+Totale lordo: EUR XX
+Ritenuta d'acconto 20%: -EUR XX
+─────────────────
+TOTALE NETTO: EUR XX`
       }]
     })
     res.json({ preventivo: response.content[0].text.trim() })
