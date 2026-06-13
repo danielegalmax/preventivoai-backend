@@ -55,7 +55,13 @@ function parsaPreventivo(testo) {
         if (matchSemplice) {
           voci.push({ nome: matchSemplice[1].trim(), dettagli: [], prezzo: matchSemplice[2].trim(), totale: matchSemplice[2].trim() })
         } else {
-          voci.push({ nome: testo_voce, dettagli: [], prezzo: '', totale: '' })
+          // Separa "Nome: descrizione" in nome e descrizione separati
+          const matchNomeDesc = testo_voce.match(/^(.+?):\s*(.+)$/)
+          if (matchNomeDesc && !/€|\d+/.test(matchNomeDesc[2])) {
+            voci.push({ nome: matchNomeDesc[1].trim(), descrizione: matchNomeDesc[2].trim(), dettagli: [], prezzo: '', totale: '' })
+          } else {
+            voci.push({ nome: testo_voce, dettagli: [], prezzo: '', totale: '' })
+          }
         }
       }
       continue
