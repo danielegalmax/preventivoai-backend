@@ -8,7 +8,7 @@ router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { testo, template, versione_padre_id, cliente_id } = req.body
+    const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
     const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
     const colore = profile?.colore_brand || '0D1B2A'
     const logo = profile?.logo_url || null
@@ -36,7 +36,7 @@ router.post('/api/genera-pdf', express.json(), async (req, res) => {
     const anno = new Date().getFullYear()
     const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
 
-    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati })
+    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
     if (versione_padre_id) {
       await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
     }
