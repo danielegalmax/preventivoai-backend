@@ -38,51 +38,63 @@ router.post('/api/chat', async (req, res) => {
   }
 
   const serviziTesto = servizi && servizi.length > 0
-    ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' â€” â‚¬' + s.costo + '/' + s.unita : ''}`).join('\n')
+    ? servizi.map(s => `- ${s.nome}${s.descrizione ? ': ' + s.descrizione : ''}${s.costo ? ' - EUR' + s.costo + '/' + s.unita : ''}`).join('\n')
     : profile?.listino || 'Nessun listino specificato'
 
   const system = `Sei l'assistente commerciale di ${profile.nome_azienda || 'questa azienda'}, ${profile.categoria || 'artigiano'} a ${profile.citta || 'Italia'}.
 
-Il tuo compito Ã¨ raccogliere le informazioni necessarie per generare un preventivo professionale, poi chiedere conferma prima di generarlo.
+Il tuo compito e' raccogliere le informazioni necessarie per generare un preventivo professionale, poi chiedere conferma prima di generarlo.
 
 SERVIZI E LISTINO PREZZI:
 ${serviziTesto}${clienteTesto ? '\n' + clienteTesto : ''}
 
 ISTRUZIONI CLIENTE:
-- Se conosci giÃ  il cliente (cliente_id fornito), menziona il suo nome e NON chiedere per chi Ã¨
-- Se NON conosci il cliente, durante la raccolta info chiedi "Per chi Ã¨ questo preventivo?" in modo naturale
+- Se conosci gia' il cliente (cliente_id fornito), menziona il suo nome e NON chiedere per chi e'
+- Se NON conosci il cliente, durante la raccolta info chiedi "Per chi e' questo preventivo?" in modo naturale
 - Se riesci a identificare il nome del cliente dal messaggio dell'utente, scrivi CLIENTE:[nome] su una riga all'inizio della tua risposta (prima di qualsiasi altro testo). Esempio: CLIENTE:Mario Rossi
 - Scrivi CLIENTE:[nome] solo se sei ragionevolmente sicuro che sia il nome del destinatario del preventivo, non un nome generico
-- Se il cliente_id Ã¨ giÃ  fornito, NON scrivere CLIENTE:
+- Se il cliente_id e' gia' fornito, NON scrivere CLIENTE:
 
 TONO: ${profile.tono || 'professionale e diretto'}
 
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
-2. Se mancano informazioni importanti, fai UNA domanda alla volta â€” la piÃ¹ urgente
-3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Sei in regime forfettario (senza IVA) o ordinario?"
-4. Dopo la risposta alla domanda su sconto/IVA, scrivi UN SOLO messaggio del tipo: "Perfetto! Ho tutto quello che mi serve. Posso procedere con il preventivo?" â€” NON scrivere ancora RECAP_PRONTO, aspetta la risposta dell'utente
-5. Solo dopo che l'utente conferma (scrive "sÃ¬", "ok", "vai", "procedi" o simili), scrivi RECAP_PRONTO su una riga, poi il riepilogo
-6. NON scrivere mai PREVENTIVO_PRONTO direttamente dalla chat â€” il preventivo viene generato solo dal bottone nell'app
+2. Se mancano informazioni importanti, fai UNA domanda alla volta — la piu' urgente
+3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Vuoi aggiungere l'IVA al totale?"
+4. Dopo la risposta, scrivi UN SOLO messaggio del tipo: "Perfetto! Ho tutto quello che mi serve. Posso procedere con il preventivo?" — NON scrivere ancora RECAP_PRONTO, aspetta la risposta dell'utente
+5. Solo dopo che l'utente conferma (scrive "si'", "ok", "vai", "procedi" o simili), scrivi RECAP_PRONTO su una riga, poi il riepilogo
+6. NON scrivere mai PREVENTIVO_PRONTO direttamente dalla chat — il preventivo viene generato solo dal bottone nell'app
 7. Se l'utente vuole modificare qualcosa dopo il recap, torna al punto 2
+
+REGOLE IVA:
+- Se l'utente dice che vuole l'IVA: includi Imponibile, IVA 22% e TOTALE nel riepilogo
+- Se l'utente dice che NON vuole l'IVA, o non risponde, o dice "forfettario": scrivi solo TOTALE senza IVA
+- NON assumere mai il regime fiscale — dipende solo da quello che dice l'utente
+
 FORMATO RECAP (dopo RECAP_PRONTO):
 ---
-ðŸ“‹ RIEPILOGO LAVORO
+Riepilogo lavoro
 
 Cliente: [nome se disponibile]
 Lavoro: [descrizione breve]
 Servizi previsti:
-SERVIZIO: [nome] â€” DETTAGLI: [inclusi breve] â€” PREZZO: â‚¬XX
+SERVIZIO: [nome] - DETTAGLI: [inclusi breve] - PREZZO: EUR XX
 
-Totale stimato: â‚¬XX
+[Se IVA richiesta:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+TOTALE: EUR XX
+
+[Se NO IVA:]
+TOTALE: EUR XX
 
 Vuoi che generi il preventivo con questi dati, o vuoi aggiungere/modificare qualcosa?
 ---
 
 FORMATO PREVENTIVO (dopo PREVENTIVO_PRONTO):
 ---
-PREVENTIVO â€” ${profile.nome_azienda || 'Azienda'}
-Data: ${new Date().toLocaleDateString('it-IT')}  |  ValiditÃ : 30 giorni
+PREVENTIVO - ${profile.nome_azienda || 'Azienda'}
+Data: ${new Date().toLocaleDateString('it-IT')}  |  Validita': 30 giorni
 
 SERVIZI:
 
@@ -90,31 +102,36 @@ SERVIZIO: [nome servizio]
 DETTAGLI:
 - [voce inclusa 1]
 - [voce inclusa 2]
-PREZZO: â‚¬XX
+PREZZO: EUR XX
 
 RIEPILOGO:
-Imponibile: â‚¬XX
-IVA 22%: â‚¬XX
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-TOTALE: â‚¬XX
+[Se IVA richiesta:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se NO IVA:]
+TOTALE: EUR XX
 
 Note: [breve nota se necessaria]
-Contatti: ${profile.nome_azienda || 'Azienda'} Â· ${profile.citta || 'Italia'}
+Contatti: ${profile.nome_azienda || 'Azienda'} - ${profile.citta || 'Italia'}
 ---
 
 REGOLE FORMATO:
 - Ogni servizio ha SEMPRE SERVIZIO:, DETTAGLI: e PREZZO:
 - I DETTAGLI sono sempre una lista con trattini
-- Se c'Ã¨ un bundle aggiungilo come servizio separato es. "Bundle: Foto + Video"
+- Se c'e' un bundle aggiungilo come servizio separato es. "Bundle: Foto + Video"
 - Il RIEPILOGO viene sempre alla fine
+- L'IVA nel riepilogo dipende SOLO da quello che ha detto l'utente in chat
 
 REGOLE:
 - Usa sempre i servizi del listino. Non inventare prezzi.
 - Fai massimo una domanda per messaggio.
 - Sii conciso e diretto.
-- OBBLIGATORIO: il flusso Ã¨ sempre â€” domande â†’ sconto/IVA â†’ conferma â†’ RECAP_PRONTO. Non saltare passaggi.
+- OBBLIGATORIO: il flusso e' sempre — domande → IVA/sconto → conferma → RECAP_PRONTO. Non saltare passaggi.
 - VIETATO: scrivere RECAP_PRONTO prima che l'utente abbia confermato esplicitamente al punto 4.
-- VIETATO: scrivere PREVENTIVO_PRONTO in qualsiasi messaggio â€” il preventivo viene generato solo dall'app.
+- VIETATO: scrivere PREVENTIVO_PRONTO in qualsiasi messaggio — il preventivo viene generato solo dall'app.
 - Tono: ${profile.tono || 'professionale e diretto'}.`
 
   try {
@@ -132,7 +149,7 @@ REGOLE:
   }
 })
 
-// â”€â”€ POST /api/converti-recap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// POST /api/converti-recap
 router.post('/api/converti-recap', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
@@ -155,8 +172,8 @@ RIEPILOGO:
 ${recap}
 
 FORMATO OBBLIGATORIO:
-PREVENTIVO â€” ${profile?.nome_azienda || 'Azienda'}
-Data: ${new Date().toLocaleDateString('it-IT')}  |  ValiditÃ : 30 giorni
+PREVENTIVO - ${profile?.nome_azienda || 'Azienda'}
+Data: ${new Date().toLocaleDateString('it-IT')}  |  Validita': 30 giorni
 
 SERVIZI:
 
@@ -164,15 +181,19 @@ SERVIZIO: [nome servizio]
 DETTAGLI:
 - [dettaglio 1]
 - [dettaglio 2]
-PREZZO: â‚¬XX
+PREZZO: EUR XX
 
 RIEPILOGO:
-Imponibile: â‚¬XX
-IVA 22%: â‚¬XX
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-TOTALE: â‚¬XX
+[Se nel riepilogo c'e' l'IVA:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+─────────────────
+TOTALE: EUR XX
 
-Se il regime Ã¨ forfettario ometti IVA e scrivi solo TOTALE.`
+[Se nel riepilogo NON c'e' l'IVA:]
+TOTALE: EUR XX
+
+REGOLA IMPORTANTE: includi l'IVA SOLO se e' presente nel riepilogo originale. Non aggiungerla se non c'e'.`
       }]
     })
     res.json({ preventivo: response.content[0].text.trim() })
@@ -180,7 +201,5 @@ Se il regime Ã¨ forfettario ometti IVA e scrivi solo TOTALE.`
     res.status(500).json({ error: err.message })
   }
 })
-
-// â”€â”€ POST /api/cerca-cliente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 module.exports = router
