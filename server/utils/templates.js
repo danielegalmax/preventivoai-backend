@@ -29,7 +29,11 @@ function parsaPreventivo(testo) {
     // Nuovo formato SERVIZIO/DETTAGLI/PREZZO
     if (riga.startsWith('SERVIZIO:') && fase === 'servizi') {
       if (servizioCorrente) voci.push(servizioCorrente)
-      servizioCorrente = { nome: riga.replace('SERVIZIO:', '').trim(), dettagli: [], prezzo: '', totale: '' }
+      const nomeServizio = riga.replace('SERVIZIO:', '').trim()
+      const colonnaIdx = nomeServizio.indexOf(': ')
+      const nomeClean = colonnaIdx > -1 ? nomeServizio.substring(0, colonnaIdx).trim() : nomeServizio
+      const descClean = colonnaIdx > -1 ? nomeServizio.substring(colonnaIdx + 2).trim() : ''
+      servizioCorrente = { nome: nomeClean, descrizione: descClean, dettagli: [], prezzo: '', totale: '' }
       continue
     }
     if (riga === 'DETTAGLI:' && servizioCorrente) { continue }
