@@ -80,7 +80,7 @@ function parsaPreventivo(testo) {
 
 // ── Funzione generaHTML ────────────────────────────────────────────
 function generaHTML(testo, template, dati) {
-  const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati } = dati
+  const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi } = dati
   const data = new Date().toLocaleDateString('it-IT')
   const logoHtml = logo ? `<img src="${logo}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ''
   const p = parsaPreventivo(testo)
@@ -88,6 +88,16 @@ function generaHTML(testo, template, dati) {
 
 function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrimario, testoSecondario, fontFamily) {
     if (p.voci.length === 0) return `<div style="font-family:${fontFamily};font-size:13px;white-space:pre-wrap;color:${testoPrimario};line-height:1.9">${testo}</div>`
+    if (nascondiPrezzi) {
+      // Tariffa a corpo: solo nomi servizi, niente prezzi singoli
+      const righe = p.voci.map((v, i) => {
+        const dettagliHtml = v.dettagli && v.dettagli.length > 0
+          ? `<div style="margin-top:5px">${v.dettagli.map(d => `<div style="font-size:11px;color:${testoSecondario};padding-left:4px">• ${d}</div>`).join('')}</div>`
+          : ''
+        return `<tr style="background:${i % 2 === 0 ? sfondoRiga : sfondoAlt}"><td style="padding:10px 14px;font-size:13px;color:${testoPrimario};vertical-align:top"><strong>${v.nome}</strong>${dettagliHtml}</td></tr>`
+      }).join('')
+      return `<table style="width:100%;border-collapse:collapse;font-family:${fontFamily};margin-bottom:20px"><thead><tr style="background:${sfondoHeader}"><th style="padding:10px 14px;font-size:11px;font-weight:700;color:${testoHeader};text-align:left;letter-spacing:1px;text-transform:uppercase">Servizio incluso</th></tr></thead><tbody>${righe}</tbody></table>`
+    }
     const righe = p.voci.map((v, i) => {
       const dettagliHtml = v.dettagli && v.dettagli.length > 0
         ? `<div style="margin-top:5px">${v.dettagli.map(d => `<div style="font-size:11px;color:${testoSecondario};padding-left:4px">• ${d}</div>`).join('')}</div>`
