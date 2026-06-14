@@ -135,4 +135,52 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+// ── POST /api/crea-link-pagamento-rata ────────────────────────────
+router.post('/api/crea-link-pagamento-rata', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  if (!stripe) return res.status(500).json({ error: 'Stripe non configurato' })
+
+  try {
+    const { rata_id, cliente_nome } = req.body
+    if (!rata_id) return res.status(400).json({ error: 'rata_id mancante' })
+
+    // Carica rata e abbonamento
+    const { data: rata } = await supabase
+      .from('rate_abbonamento')
+      .select('*, abbonamenti(user_id, importo_default)')
+      .eq('id', rata_id)
+      .single()
+
+    if (!rata) return res.status(404).json({ error: 'Rata non trovata' })
+    if (rata.abbonamenti.user_id !== user.id) return res.status(403).json({ error: 'Non autorizzato' })
+
+    const residuo = rata.importo - (rata.acconto || 0)
+    if (residuo <= 0) return res.status(400).json({ error: 'Rata già saldata' })
+
+    const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
+    const descrizione = `Canone ${MESI[rata.mese - 1]} ${rata.anno}${cliente_nome ? ` — ${cliente_nome}` : ''}`
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'eur',
+          unit_amount: Math.round(residuo * 100),
+          product_data: { name: descrizione }
+        }
+      }],
+      success_url: 'https://preventivoai-web.vercel.app/pagamento-ok',
+      cancel_url: 'https://preventivoai-web.vercel.app/pagamento-annullato',
+      metadata: { user_id: user.id, rata_id, tipo: 'abbonamento' }
+    })
+
+    res.json({ payment_url: session.url })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router
