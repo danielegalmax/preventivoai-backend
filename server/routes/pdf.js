@@ -3,6 +3,9 @@ const router = express.Router()
 const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { generaHTML } = require('../utils/templates')
+const Stripe = require('stripe')
+
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
 router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -71,4 +74,35 @@ router.post('/api/salva-pdf', express.json(), async (req, res) => {
 
 // ── POST /api/elabora-servizi ──────────────────────────────────────
 
+router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  if (!stripe) return res.status(500).json({ error: 'Stripe non configurato' })
+
+  try {
+    const { importo, descrizione } = req.body
+    const amount = Math.round(Number(importo) * 100)
+    if (!amount || amount < 50) return res.status(400).json({ error: 'Importo non valido' })
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'eur',
+          unit_amount: amount,
+          product_data: { name: descrizione || 'Preventivo' }
+        }
+      }],
+      success_url: 'https://preventivoai-web.vercel.app/pagamento-ok',
+      cancel_url: 'https://preventivoai-web.vercel.app/pagamento-annullato',
+      metadata: { user_id: user.id }
+    })
+
+    res.json({ payment_url: session.url })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 module.exports = router
