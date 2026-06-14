@@ -76,7 +76,7 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
       printBackground: true,
       preferCSSPageSize: true
     })
-    res.json({ pdf_base64: pdfBuffer.toString('base64'), versione, numeroPreventivo, html })
+    res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, html })
   } catch (err) {
     res.status(500).json({ error: err.message })
   } finally {
