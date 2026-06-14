@@ -4,53 +4,83 @@ const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { generaHTML } = require('../utils/templates')
 const Stripe = require('stripe')
+const puppeteer = require('puppeteer')
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
+
+async function generaHtmlPreventivo(req, res, user) {
+  const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
+  const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
+  const colore = profile?.colore_brand || '0D1B2A'
+  const logo = profile?.logo_url || null
+  const nome = profile?.nome_azienda || 'Azienda'
+  const citta = profile?.citta || ''
+  const piva = profile?.piva || ''
+  const telefono = profile?.telefono || ''
+  const tmpl = template || profile?.template_preferito || 'pulito'
+  const notePagamento = profile?.note_pagamento || ''
+  const firmaNome = profile?.firma_nome || ''
+
+  console.log('cliente_id ricevuto:', cliente_id)
+  let clienteDati = null
+  if (cliente_id) {
+    const { data: cl } = await supabase.from('clienti')
+      .select('nome, telefono, email, indirizzo')
+      .eq('id', cliente_id).single()
+    if (cl) clienteDati = cl
+  }
+
+  const nuovoContatore = (profile?.contatore_preventivi || 0) + 1
+  await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
+  const anno = new Date().getFullYear()
+  const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
+
+  const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
+  if (versione_padre_id) {
+    await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
+  }
+  let versione = 1
+  if (versione_padre_id) {
+    const { data: padre } = await supabase.from('preventivi').select('versione').eq('id', versione_padre_id).single()
+    if (padre) versione = (padre.versione || 1) + 1
+  }
+
+  return { html, versione, numeroPreventivo }
+}
 
 router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
-    const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
-    const colore = profile?.colore_brand || '0D1B2A'
-    const logo = profile?.logo_url || null
-    const nome = profile?.nome_azienda || 'Azienda'
-    const citta = profile?.citta || ''
-    const piva = profile?.piva || ''
-    const telefono = profile?.telefono || ''
-    const tmpl = template || profile?.template_preferito || 'pulito'
-    const notePagamento = profile?.note_pagamento || ''
-    const firmaNome = profile?.firma_nome || ''
-
-    // Carica dati cliente se presente
-    console.log('cliente_id ricevuto:', cliente_id)
-    let clienteDati = null
-    if (cliente_id) {
-      const { data: cl } = await supabase.from('clienti')
-        .select('nome, telefono, email, indirizzo')
-        .eq('id', cliente_id).single()
-      if (cl) clienteDati = cl
-    }
-
-    // Incrementa contatore preventivi
-    const nuovoContatore = (profile?.contatore_preventivi || 0) + 1
-    await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
-    const anno = new Date().getFullYear()
-    const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
-
-    const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
-    if (versione_padre_id) {
-      await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
-    }
-    let versione = 1
-    if (versione_padre_id) {
-      const { data: padre } = await supabase.from('preventivi').select('versione').eq('id', versione_padre_id).single()
-      if (padre) versione = (padre.versione || 1) + 1
-    }
+    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
     res.json({ html, versione, numeroPreventivo })
   } catch (err) {
     res.status(500).json({ error: err.message })
+  }
+})
+
+router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  let browser
+  try {
+    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true
+    })
+    res.json({ pdf_base64: pdfBuffer.toString('base64'), versione, numeroPreventivo, html })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  } finally {
+    if (browser) await browser.close()
   }
 })
 
