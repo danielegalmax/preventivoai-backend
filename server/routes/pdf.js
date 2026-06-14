@@ -8,9 +8,11 @@ const puppeteer = require('puppeteer')
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
-async function generaHtmlPreventivo(req, res, user) {
+// Funzione interna per preparare i dati e l'HTML
+async function preparePdfData(req, user) {
   const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
   const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
+  
   const colore = profile?.colore_brand || '0D1B2A'
   const logo = profile?.logo_url || null
   const nome = profile?.nome_azienda || 'Azienda'
@@ -21,7 +23,6 @@ async function generaHtmlPreventivo(req, res, user) {
   const notePagamento = profile?.note_pagamento || ''
   const firmaNome = profile?.firma_nome || ''
 
-  console.log('cliente_id ricevuto:', cliente_id)
   let clienteDati = null
   if (cliente_id) {
     const { data: cl } = await supabase.from('clienti')
@@ -32,13 +33,16 @@ async function generaHtmlPreventivo(req, res, user) {
 
   const nuovoContatore = (profile?.contatore_preventivi || 0) + 1
   await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
+  
   const anno = new Date().getFullYear()
   const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
 
-  const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
-  if (versione_padre_id) {
-    await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
-  }
+  const html = generaHTML(testo, tmpl, { 
+    nome, citta, piva, telefono, logo, colore, 
+    notePagamento, firmaNome, numeroPreventivo, 
+    clienteDati, nascondiPrezzi: !!nascondi_prezzi 
+  })
+
   let versione = 1
   if (versione_padre_id) {
     const { data: padre } = await supabase.from('preventivi').select('versione').eq('id', versione_padre_id).single()
@@ -48,23 +52,17 @@ async function generaHtmlPreventivo(req, res, user) {
   return { html, versione, numeroPreventivo }
 }
 
-router.post('/api/genera-pdf', express.json(), async (req, res) => {
+// NUOVO ENDPOINT: Genera e salva direttamente su Supabase
+router.post('/api/genera-salva-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
-  try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
-    res.json({ html, versione, numeroPreventivo })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
 
-router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
-  const user = await verificaUtente(req, res)
-  if (!user) return
   let browser
   try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
+    // 1. Preparo HTML e dati
+    const { html, versione, numeroPreventivo } = await preparePdfData(req, user)
+
+    // 2. Lancio Puppeteer per creare il PDF
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -76,34 +74,38 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
       printBackground: true,
       preferCSSPageSize: true
     })
-    res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, html })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  } finally {
-    if (browser) await browser.close()
-  }
-})
+    await browser.close()
 
-// ── POST /api/salva-pdf ────────────────────────────────────────────
-router.post('/api/salva-pdf', express.json(), async (req, res) => {
-  const user = await verificaUtente(req, res)
-  if (!user) return
-  try {
-    const { pdf_base64 } = req.body
-    if (!pdf_base64) return res.status(400).json({ error: 'PDF mancante' })
-    const pdfBuffer = Buffer.from(pdf_base64, 'base64')
+    // 3. Carico il buffer direttamente su Supabase Storage
     const fileName = `${user.id}/${Date.now()}.pdf`
-    const { error } = await supabase.storage.from('preventivi-pdf').upload(fileName, pdfBuffer, { contentType: 'application/pdf', upsert: false })
-    if (error) return res.status(500).json({ error: error.message })
+    const { error: uploadError } = await supabase.storage
+      .from('preventivi-pdf')
+      .upload(fileName, pdfBuffer, { 
+        contentType: 'application/pdf', 
+        upsert: false 
+      })
+
+    if (uploadError) throw new Error("Errore upload: " + uploadError.message)
+
+    // 4. Prendo l'URL pubblico
     const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(fileName)
-    res.json({ pdf_url: urlData.publicUrl })
+
+    // 5. Rispondo al mobile col link pronto
+    res.json({ 
+      pdf_url: urlData.publicUrl, 
+      versione, 
+      numeroPreventivo, 
+      html 
+    })
+
   } catch (err) {
+    if (browser) await browser.close()
+    console.error("Errore generazione/salvataggio PDF:", err)
     res.status(500).json({ error: err.message })
   }
 })
 
-// ── POST /api/elabora-servizi ──────────────────────────────────────
-
+// Manteniamo gli altri per compatibilità temporanea
 router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
@@ -135,4 +137,5 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
 module.exports = router
