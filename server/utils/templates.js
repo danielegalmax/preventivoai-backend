@@ -87,7 +87,7 @@ function parsaPreventivo(testo) {
     if (riga.startsWith('PayPal:') && pagamento) { pagamento += '  PayPal ' + riga.replace('PayPal:', '').trim(); continue }
     if (riga.startsWith('LINK PAGAMENTO:') && pagamento) {
       const link = riga.replace('LINK PAGAMENTO:', '').trim()
-      pagamento += `<br><a href="${link}" target="_blank" style="color:#0e9f8e;font-weight:700;text-decoration:underline">Paga online</a><br><a href="${link}" target="_blank" style="font-size:10px;word-break:break-all;color:#0e9f8e;text-decoration:underline">${link}</a>`
+      pagamento += `<br><a href="${link}" target="_blank" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#0e9f8e;color:#ffffff;font-weight:700;font-size:13px;border-radius:8px;text-decoration:none;">Clicca qui per pagare →</a>`
       continue
     }
     if (riga.startsWith('Contatti:')) { contatti = riga.replace('Contatti:', '').trim(); continue }
