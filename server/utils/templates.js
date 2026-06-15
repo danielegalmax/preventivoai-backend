@@ -120,7 +120,6 @@ function parsaPreventivo(testo) {
 }
 
 //  Funzione generaHTML 
-console.log('TESTO PREVENTIVO:', testo)
 function generaHTML(testo, template, dati) {
   const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi } = dati
   const data = new Date().toLocaleDateString('it-IT')
