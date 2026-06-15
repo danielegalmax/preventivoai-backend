@@ -34,12 +34,22 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { testo } = req.body
-    if (!testo) return res.status(400).json({ error: 'Testo mancante' })
+    const { testo, immagine_base64, mime_type } = req.body
+    if (!testo && !immagine_base64) return res.status(400).json({ error: 'Testo o immagine mancante' })
+
+    const prompt = `Analizza questo listino prezzi e restituisci un array JSON di servizi strutturati.\n\nRispondi SOLO con un array JSON valido, niente altro. Formato:\n[\n  {\n    "nome": "Nome servizio",\n    "descrizione": "Breve descrizione opzionale",\n    "costo": 300,\n    "unita": "cad"\n  }\n]\n\nPer unita usa: cad, ora, giorno, mq, ml, set, progetto\nSe il costo non è specificato, metti null.\nSe la descrizione non è chiara, metti stringa vuota.`
+
+    const content = immagine_base64
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: mime_type || 'image/jpeg', data: immagine_base64 } },
+          { type: 'text', text: prompt }
+        ]
+      : `${prompt}\n\nListino:\n${testo}`
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
-      messages: [{ role: 'user', content: `Analizza questo listino prezzi e restituisci un array JSON di servizi strutturati.\n\nListino:\n${testo}\n\nRispondi SOLO con un array JSON valido, niente altro. Formato:\n[\n  {\n    "nome": "Nome servizio",\n    "descrizione": "Breve descrizione opzionale",\n    "costo": 300,\n    "unita": "cad"\n  }\n]\n\nPer unita usa: cad, ora, giorno, mq, ml, set, progetto\nSe il costo non è specificato, metti null.\nSe la descrizione non è chiara, metti stringa vuota.` }]
+      messages: [{ role: 'user', content }]
     })
     const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim()
     res.json({ servizi: JSON.parse(clean) })
