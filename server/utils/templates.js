@@ -86,7 +86,12 @@ function parsaPreventivo(testo) {
         rimborsoCorrente = { nome: riga.replace('RIMBORSO:', '').trim(), dettaglio: '', tipo: '', importo: '' }
         continue
       }
-      if (riga.startsWith('DETTAGLIO:') && rimborsoCorrente) { rimborsoCorrente.dettaglio = riga.replace('DETTAGLIO:', '').trim(); continue }
+      if (riga.startsWith('DETTAGLIO:') && rimborsoCorrente) {
+        rimborsoCorrente.dettaglio = riga.replace('DETTAGLIO:', '').trim()
+        const matchImporto = rimborsoCorrente.dettaglio.match(/=\s*€?([\d.,]+)/)
+        if (matchImporto) rimborsoCorrente.importo = '€' + matchImporto[1]
+        continue
+      }
       if (riga.startsWith('TIPO:') && rimborsoCorrente) { rimborsoCorrente.tipo = riga.replace('TIPO:', '').trim(); continue }
       if (riga.startsWith('IMPORTO:') && rimborsoCorrente) { rimborsoCorrente.importo = riga.replace('IMPORTO:', '').trim(); continue }
     }
