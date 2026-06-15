@@ -99,6 +99,7 @@ function parsaPreventivo(testo) {
     if (riga.startsWith('Imponibile:')) { imponibile = riga.replace('Imponibile:', '').trim(); continue }
     if (riga.startsWith('IVA')) { iva = riga; continue }
     if (riga.startsWith('TOTALE:')) { totale = riga.replace('TOTALE:', '').trim(); continue }
+    if (riga === 'RIMBORSI SPESE:') { fase = 'rimborsi'; continue }
     if (riga.startsWith('Note:')) { note = riga.replace('Note:', '').trim(); continue }
     if (riga.startsWith('CANONE MENSILE:')) { canoneMensile = riga.replace('CANONE MENSILE:', '').trim(); continue }
     if (riga.startsWith('PAGAMENTO:')) { pagamento = riga.replace('PAGAMENTO:', '').trim(); continue }
