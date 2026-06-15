@@ -117,6 +117,7 @@ function parsaPreventivo(testo) {
 
   if (servizioCorrente) voci.push(servizioCorrente)
   if (rimborsoCorrente) rimborsi.push(rimborsoCorrente)
+  console.log('RIMBORSI PARSATI:', JSON.stringify(rimborsi))
   return { titolo, data, validita, problema, voci, rimborsi, imponibile, iva, totale, note, pagamento, canoneMensile, contatti }
 }
 
