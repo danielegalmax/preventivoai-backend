@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
+const { sendError } = require('../utils/http')
 
 router.post('/api/cerca-cliente', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -17,7 +18,7 @@ router.post('/api/cerca-cliente', express.json(), async (req, res) => {
       .limit(5)
     res.json({ risultati: data || [] })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
@@ -34,7 +35,7 @@ router.post('/api/crea-cliente-da-chat', express.json(), async (req, res) => {
     if (error) return res.status(500).json({ error: error.message })
     res.json({ cliente: data })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 

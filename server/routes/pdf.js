@@ -3,6 +3,7 @@ const router = express.Router()
 const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { generaHTML } = require('../utils/templates')
+const { sendError } = require('../utils/http')
 const Stripe = require('stripe')
 const puppeteer = require('puppeteer')
 
@@ -55,7 +56,7 @@ router.post('/api/genera-pdf', express.json(), async (req, res) => {
     const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
     res.json({ html, versione, numeroPreventivo })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
@@ -78,7 +79,7 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
     })
     res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, html })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   } finally {
     if (browser) await browser.close()
   }
@@ -98,7 +99,7 @@ router.post('/api/salva-pdf', express.json(), async (req, res) => {
     const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(fileName)
     res.json({ pdf_url: urlData.publicUrl })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
@@ -132,7 +133,7 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
 
     res.json({ payment_url: session.url })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 // ── POST /api/crea-link-pagamento-rata ────────────────────────────
@@ -179,7 +180,7 @@ router.post('/api/crea-link-pagamento-rata', express.json(), async (req, res) =>
 
     res.json({ payment_url: session.url })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 

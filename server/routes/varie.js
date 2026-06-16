@@ -3,8 +3,9 @@ const fs = require('fs')
 const router = express.Router()
 const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
+const { asyncRoute, sendError } = require('../utils/http')
 
-router.post('/api/salva-preventivo', async (req, res) => {
+router.post('/api/salva-preventivo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   const { testo_preventivo, importo_totale, nome_cliente, messaggio_cliente } = req.body
@@ -18,7 +19,7 @@ router.post('/api/salva-preventivo', async (req, res) => {
   }).select().single()
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
-})
+}))
 
 // ── POST /api/trascrivi ────────────────────────────────────────────
 router.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) => {
@@ -41,18 +42,18 @@ router.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) 
     res.json({ trascrizione: trascrizione.text })
   } catch (err) {
     console.error('Errore trascrizione:', err)
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
 // ── GET /api/trascrizioni ──────────────────────────────────────────
-router.get('/api/trascrizioni', async (req, res) => {
+router.get('/api/trascrizioni', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   const { data, error } = await supabase.from('trascrizioni').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
-})
+}))
 
 // ── POST /api/upload-logo ──────────────────────────────────────────
 

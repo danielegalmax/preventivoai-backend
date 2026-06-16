@@ -2,6 +2,7 @@
 const router = express.Router()
 const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
+const { sendError } = require('../utils/http')
 
 router.post('/api/chat', async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -157,7 +158,7 @@ REGOLE:
     res.json({ reply })
   } catch (err) {
     console.error('Errore Claude:', err)
-    res.status(500).json({ error: 'Errore AI: ' + err.message })
+    sendError(res, new Error('Errore AI: ' + err.message))
   }
 })
 
@@ -215,7 +216,7 @@ TOTALE NETTO: EUR XX`
     })
     res.json({ preventivo: response.content[0].text.trim() })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 

@@ -2,14 +2,15 @@ const express = require('express')
 const router = express.Router()
 const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
+const { asyncRoute, sendError } = require('../utils/http')
 
-router.get('/api/profilo', async (req, res) => {
+router.get('/api/profilo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single()
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
-})
+}))
 
 // ── POST /api/chat ────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ router.post('/api/upload-logo', express.json(), async (req, res) => {
     await supabase.from('profiles').update({ logo_url: urlData.publicUrl }).eq('id', user.id)
     res.json({ logo_url: urlData.publicUrl })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
@@ -54,7 +55,7 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
     const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim()
     res.json({ servizi: JSON.parse(clean) })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    sendError(res, err)
   }
 })
 
