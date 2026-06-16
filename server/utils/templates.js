@@ -185,7 +185,44 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
     artigiano: `<style>@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Lora',Georgia,serif;padding:48px;color:#2c1810;background:#fdfaf5}</style><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:3px double ${coloreHex}"><div>${logoHtml ? `<div style="margin-bottom:10px">${logoHtml}</div>` : ''}<div style="font-size:22px;font-weight:600;color:${coloreHex};font-style:italic">${nome}</div><div style="font-size:11px;color:#8b6355;margin-top:4px;line-height:1.8">${contattiAzienda}</div></div><div style="text-align:right;font-size:11px;color:#8b6355;line-height:1.8">Data: ${data}<br>Validit: ${p.validita || '30 giorni'}</div></div><div style="font-size:18px;font-weight:600;color:${coloreHex};font-style:italic;margin-bottom:4px;text-align:center">~ Preventivo ~</div>${numeroPreventivo ? `<div style="font-size:10px;color:#8b6355;text-align:center;letter-spacing:1px;margin-bottom:16px">${numeroPreventivo}</div>` : ""}${clienteDati ? `<div style="margin-bottom:20px;padding:14px 16px;background:#fdf3e7;border-radius:8px;border-left:3px solid ${coloreHex}"><div style="font-size:10px;font-weight:700;color:#8b6355;letter-spacing:1px;margin-bottom:6px">INTESTATO A</div><div style="font-size:14px;font-weight:600;color:#2c1810;font-style:italic">${clienteDati.nome}</div>${clienteDati.indirizzo ? `<div style="font-size:12px;color:#8b6355;margin-top:2px">${clienteDati.indirizzo}</div>` : ''}${clienteDati.email ? `<div style="font-size:12px;color:#8b6355;margin-top:1px">${clienteDati.email}</div>` : ''}${clienteDati.telefono ? `<div style="font-size:12px;color:#8b6355;margin-top:1px">${clienteDati.telefono}</div>` : ''}</div>` : ''}${p.problema ? `<div style="font-style:italic;color:#5c3d2e;margin-bottom:20px;padding:12px 16px;border-left:3px solid ${coloreHex};background:#fdf3e7;font-size:13px">${p.problema}</div>` : ''}${nascondiPrezzi ? `<table style="width:100%;border-collapse:collapse;margin-bottom:20px"><thead><tr style="background:${coloreHex};color:#fff"><th style="padding:10px 14px;font-size:11px;font-weight:600;text-align:left;letter-spacing:1px">Descrizione</th></tr></thead><tbody>${p.voci.map((v, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#fdf3e7'}"><td style="padding:10px 14px;font-size:13px;color:#2c1810;vertical-align:top"><strong>${v.nome}</strong>${v.descrizione ? '<div style="font-size:11px;color:#8b6355;margin-top:3px;font-style:italic">' + v.descrizione + '</div>' : ''}${v.dettagli && v.dettagli.length > 0 ? v.dettagli.map(d => '<div style="font-size:11px;color:#8b6355;margin-top:2px;padding-left:4px"> ' + d + '</div>').join('') : ''}</td></tr>`).join('')}</tbody></table>` : `<table style="width:100%;border-collapse:collapse;margin-bottom:20px"><thead><tr style="background:${coloreHex};color:#fff"><th style="padding:10px 14px;font-size:11px;font-weight:600;text-align:left;letter-spacing:1px">Descrizione</th><th style="padding:10px 14px;font-size:11px;font-weight:600;text-align:right;letter-spacing:1px">Prezzo</th><th style="padding:10px 14px;font-size:11px;font-weight:600;text-align:right;letter-spacing:1px">Totale</th></tr></thead><tbody>${p.voci.map((v, i) => `<tr style="background:${i % 2 === 0 ? '#fff' : '#fdf3e7'}"><td style="padding:10px 14px;font-size:13px;color:#2c1810;vertical-align:top"><strong>${v.nome}</strong>${v.descrizione ? '<div style="font-size:11px;color:#8b6355;margin-top:3px;font-style:italic">' + v.descrizione + '</div>' : ''}${v.dettagli && v.dettagli.length > 0 ? v.dettagli.map(d => '<div style="font-size:11px;color:#8b6355;margin-top:2px;padding-left:4px"> ' + d + '</div>').join('') : ''}</td><td style="padding:10px 14px;font-size:13px;color:#8b6355;text-align:right;vertical-align:top">${v.prezzo ? '' + v.prezzo : ''}</td><td style="padding:10px 14px;font-size:13px;font-weight:600;color:${coloreHex};text-align:right;vertical-align:top">${v.totale ? '' + v.totale : ''}</td></tr>`).join('')}</tbody></table>`}${rimborsiHtml}${p.totale ? `<div style="display:flex;justify-content:flex-end"><div style="background:#fdf3e7;border:1px solid ${coloreHex}40;border-radius:6px;padding:14px 18px;min-width:200px">${p.imponibile ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#8b6355;margin-bottom:6px"><span>Imponibile</span><span>${p.imponibile}</span></div>` : ''}${p.iva ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#8b6355;margin-bottom:10px"><span>${p.iva.split(':')[0]}</span><span>${p.iva.split(':')[1] ? p.iva.split(':')[1].trim() : ''}</span></div>` : ''}<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:600;color:${coloreHex};border-top:1px solid ${coloreHex}40;padding-top:10px;margin-top:4px;font-style:italic"><span>Totale</span><span>${p.totale}</span></div></div></div>` : ''}${p.note ? `<div style="margin-top:20px;padding:12px 16px;background:#fdf3e7;border:1px dashed ${coloreHex}80;border-radius:6px;font-size:12px;color:#5c3d2e;font-style:italic"><strong>Note:</strong> ${p.note}</div>` : ''}${canoneMensileHtml}${p.pagamento ? `<div style="margin-top:12px;padding:12px 16px;background:#fdf3e7;border:1px dashed #8b635580;border-radius:6px;font-size:12px;color:#5c3d2e;font-style:italic"><strong> Pagamento:</strong> ${p.pagamento}</div>` : ''}${notePagamento ? `<div style="margin-top:12px;padding:12px 16px;background:#fdf3e7;border-radius:6px;font-size:12px;color:#8b6355"> ${notePagamento}</div>` : ""}${firmaNome ? `<div style="margin-top:24px;text-align:right;font-size:20px;color:#5c3d2e;font-family:'Dancing Script',cursive;font-style:italic">${firmaNome}</div>` : ""}<div style="margin-top:36px;padding-top:14px;border-top:3px double ${coloreHex};font-size:11px;color:#8b6355;text-align:center;font-style:italic">"La qualit del lavoro ben fatto"  ${nome}</div>`
   }
 
-return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=500, initial-scale=0.7, shrink-to-fit=yes"><link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet"></head><body>${templates[template] || templates.pulito}</body></html>`
+  const pageBreakScript = `<script>
+    (function () {
+      var A4_HEIGHT_PX = 1123;
+      function calcolaPageBreaks() {
+        var elementi = Array.prototype.slice.call(document.body.children)
+          .filter(function (el) { return el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE'; });
+        var breakPoints = [];
+        var paginaCorrente = 1;
+        elementi.forEach(function (el) {
+          el.removeAttribute('data-page-break');
+          el.classList.remove('page-break-marker');
+          var top = el.getBoundingClientRect().top + window.scrollY;
+          while (top >= paginaCorrente * A4_HEIGHT_PX) {
+            el.setAttribute('data-page-break', 'true');
+            el.classList.add('page-break-marker');
+            breakPoints.push({ page: paginaCorrente + 1, offsetTop: Math.round(top), tag: el.tagName.toLowerCase() });
+            paginaCorrente += 1;
+          }
+        });
+        var altezzaDocumento = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        var totalPages = Math.max(1, Math.ceil(altezzaDocumento / A4_HEIGHT_PX));
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'page-breaks',
+            pageHeightPx: A4_HEIGHT_PX,
+            totalPages: totalPages,
+            breakPoints: breakPoints
+          }));
+        }
+      }
+      window.addEventListener('load', calcolaPageBreaks);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(calcolaPageBreaks);
+      setTimeout(calcolaPageBreaks, 300);
+      setTimeout(calcolaPageBreaks, 1000);
+    })();
+  </script>`
+
+return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=500, initial-scale=0.7, shrink-to-fit=yes"><link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet"></head><body>${templates[template] || templates.pulito}${pageBreakScript}</body></html>`
 
 }
 
