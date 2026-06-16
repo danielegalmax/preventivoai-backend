@@ -17,7 +17,7 @@ async function generaHtmlPreventivo(req, user) {
   const logo = profile?.logo_url || null
   const nome = demo_profile?.nome_azienda || profile?.nome_azienda || 'Azienda'
   const citta = demo_profile?.citta || profile?.citta || ''
-  const piva = profile?.piva || ''
+  const piva = demo_profile?.piva || profile?.piva || ''
   const telefono = demo_profile?.telefono || profile?.telefono || ''
   const tmpl = template || profile?.template_preferito || 'pulito'
   const notePagamento = profile?.note_pagamento || ''
