@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer')
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
-async function generaHtmlPreventivo(req, res, user) {
+async function generaHtmlPreventivo(req, user) {
   const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
   const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
   const colore = profile?.colore_brand || '0D1B2A'
@@ -53,7 +53,7 @@ router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
+    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, user)
     res.json({ html, versione, numeroPreventivo })
   } catch (err) {
     sendError(res, err)
@@ -65,7 +65,7 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
   if (!user) return
   let browser
   try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, res, user)
+    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, user)
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']

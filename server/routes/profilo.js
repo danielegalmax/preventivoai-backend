@@ -19,7 +19,7 @@ router.post('/api/upload-logo', express.json(), async (req, res) => {
   if (!user) return
   try {
     const { logo_base64, mime_type } = req.body
-    const { data, error } = await supabase.storage.from('loghi').upload(`${user.id}/logo`, Buffer.from(logo_base64, 'base64'), { contentType: mime_type || 'image/png', upsert: true })
+    const { error } = await supabase.storage.from('loghi').upload(`${user.id}/logo`, Buffer.from(logo_base64, 'base64'), { contentType: mime_type || 'image/png', upsert: true })
     if (error) return res.status(500).json({ error: error.message })
     const { data: urlData } = supabase.storage.from('loghi').getPublicUrl(`${user.id}/logo`)
     await supabase.from('profiles').update({ logo_url: urlData.publicUrl }).eq('id', user.id)

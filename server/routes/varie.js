@@ -26,7 +26,7 @@ router.post('/api/trascrivi', express.json({ limit: '50mb' }), async (req, res) 
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { audio, durata } = req.body
+    const { audio } = req.body
     if (!audio) return res.status(400).json({ error: 'Audio mancante' })
     const buffer = Buffer.from(audio, 'base64')
     const tempPath = `/tmp/audio_${Date.now()}.m4a`
