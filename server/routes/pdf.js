@@ -11,21 +11,23 @@ const { trackEvento } = require('../utils/analytics')
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
 async function generaHtmlPreventivo(req, user) {
-  const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi } = req.body
+  const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi, demo_profile, demo_cliente } = req.body
   const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
   const colore = profile?.colore_brand || '0D1B2A'
   const logo = profile?.logo_url || null
-  const nome = profile?.nome_azienda || 'Azienda'
-  const citta = profile?.citta || ''
+  const nome = demo_profile?.nome_azienda || profile?.nome_azienda || 'Azienda'
+  const citta = demo_profile?.citta || profile?.citta || ''
   const piva = profile?.piva || ''
-  const telefono = profile?.telefono || ''
+  const telefono = demo_profile?.telefono || profile?.telefono || ''
   const tmpl = template || profile?.template_preferito || 'pulito'
   const notePagamento = profile?.note_pagamento || ''
   const firmaNome = profile?.firma_nome || ''
 
   console.log('cliente_id ricevuto:', cliente_id)
   let clienteDati = null
-  if (cliente_id) {
+  if (demo_cliente) {
+    clienteDati = demo_cliente
+  } else if (cliente_id) {
     const { data: cl } = await supabase.from('clienti')
       .select('nome, telefono, email, indirizzo')
       .eq('id', cliente_id).single()
