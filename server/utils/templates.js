@@ -189,8 +189,25 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
     (function () {
       var A4_HEIGHT_PX = 1123;
       function calcolaPageBreaks() {
-        var elementi = Array.prototype.slice.call(document.body.children)
-          .filter(function (el) { return el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE'; });
+        var selettori = [
+          'tbody > tr',
+          'table',
+          'body > div',
+          'body > div > div',
+          'body > div > div > div',
+          'body > div > div > div > div'
+        ].join(',');
+        var elementi = Array.prototype.slice.call(document.querySelectorAll(selettori))
+          .filter(function (el) {
+            if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return false;
+            var rect = el.getBoundingClientRect();
+            if (rect.height < 8 || rect.width < 8) return false;
+            if (el.querySelector('tr') && el.tagName !== 'TR') return false;
+            return true;
+          })
+          .sort(function (a, b) {
+            return (a.getBoundingClientRect().top + window.scrollY) - (b.getBoundingClientRect().top + window.scrollY);
+          });
         var breakPoints = [];
         var paginaCorrente = 1;
         elementi.forEach(function (el) {
