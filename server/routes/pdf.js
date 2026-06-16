@@ -21,7 +21,7 @@ async function generaHtmlPreventivo(req, user) {
   const telefono = demo_profile?.telefono || profile?.telefono || ''
   const tmpl = template || profile?.template_preferito || 'pulito'
   const notePagamento = profile?.note_pagamento || ''
-  const firmaNome = profile?.firma_nome || ''
+  const firmaNome = demo_profile?.firma_nome || profile?.firma_nome || ''
 
   console.log('cliente_id ricevuto:', cliente_id)
   let clienteDati = null
