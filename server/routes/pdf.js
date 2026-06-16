@@ -6,6 +6,7 @@ const { generaHTML } = require('../utils/templates')
 const { sendError } = require('../utils/http')
 const Stripe = require('stripe')
 const puppeteer = require('puppeteer')
+const { trackEvento } = require('../utils/analytics')
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
@@ -77,6 +78,7 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
       printBackground: true,
       preferCSSPageSize: true
     })
+    trackEvento({ userId: user.id, evento: 'pdf_generato', schermata: 'preventivo-pdf', dati: { template: req.body.template, versione } })
     res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, html })
   } catch (err) {
     sendError(res, err)
@@ -131,6 +133,7 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
       metadata: { user_id: user.id }
     })
 
+    trackEvento({ userId: user.id, evento: 'stripe_link_creato', schermata: 'preventivo-pdf', dati: { importo } })
     res.json({ payment_url: session.url })
   } catch (err) {
     sendError(res, err)

@@ -3,6 +3,7 @@ const router = express.Router()
 const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { asyncRoute, sendError } = require('../utils/http')
+const { trackAI, trackEvento } = require('../utils/analytics')
 
 router.get('/api/profilo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -47,11 +48,21 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
         ]
       : `${prompt}\n\nListino:\n${testo}`
 
+    const inizio = Date.now()
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content }]
     })
+    
+    trackAI({
+      userId: user.id,
+      endpoint: '/api/elabora-servizi',
+      tokenInput: response.usage.input_tokens,
+      tokenOutput: response.usage.output_tokens,
+      latenzaMs: Date.now() - inizio
+    })
+    trackEvento({ userId: user.id, evento: 'listino_smart', schermata: 'settings', dati: { tipo: immagine_base64 ? 'foto' : 'testo' } })
     const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim()
     res.json({ servizi: JSON.parse(clean) })
   } catch (err) {

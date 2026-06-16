@@ -2,6 +2,7 @@
 const router = express.Router()
 const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
+const { trackAI, trackEvento } = require('../utils/analytics')
 const { sendError } = require('../utils/http')
 
 router.post('/api/chat', async (req, res) => {
@@ -148,6 +149,7 @@ REGOLE:
 - Tono: ${profile.tono || 'professionale e diretto'}.`
 
   try {
+    const inizio = Date.now()
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -155,6 +157,16 @@ REGOLE:
       messages
     })
     const reply = response.content[0].text
+    
+    trackAI({
+      userId: user.id,
+      endpoint: '/api/chat',
+      tokenInput: response.usage.input_tokens,
+      tokenOutput: response.usage.output_tokens,
+      latenzaMs: Date.now() - inizio
+    })
+    trackEvento({ userId: user.id, evento: 'chat_messaggio', schermata: 'chat', dati: { ha_recap: reply.includes('RECAP_PRONTO') } })
+    
     res.json({ reply })
   } catch (err) {
     console.error('Errore Claude:', err)
@@ -174,6 +186,7 @@ router.post('/api/converti-recap', express.json(), async (req, res) => {
       .eq('id', user.id)
       .single()
 
+    const inizio = Date.now()
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -213,6 +226,13 @@ Ritenuta d'acconto 20%: -EUR XX
 ─────────────────
 TOTALE NETTO: EUR XX`
       }]
+    })
+    trackAI({
+      userId: user.id,
+      endpoint: '/api/converti-recap',
+      tokenInput: response.usage.input_tokens,
+      tokenOutput: response.usage.output_tokens,
+      latenzaMs: Date.now() - inizio
     })
     res.json({ preventivo: response.content[0].text.trim() })
   } catch (err) {
