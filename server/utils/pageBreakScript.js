@@ -82,6 +82,20 @@ function generaPageBreakScript() {
         return section ? getLayoutBottom(section) : 0;
       }
 
+      function pushOverflowingRows() {
+        var pageHeight = A4_HEIGHT_UNSCALED;
+        var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr:not([data-repeated-header])');
+        Array.prototype.forEach.call(rows, function (row) {
+          var top = getLayoutTop(row);
+          var bottom = getLayoutBottom(row);
+          var pageStart = Math.floor(top / pageHeight) * pageHeight;
+          var limit = pageStart + pageHeight - PAGE_BOTTOM_MARGIN;
+          if (bottom > limit) {
+            injectSpacerBefore(row, pageStart + pageHeight);
+          }
+        });
+      }
+
       function repeatTableHeaderForPreview() {
         var table = document.querySelector('[data-section="servizi"] table');
         if (!table) return;
@@ -140,6 +154,7 @@ function generaPageBreakScript() {
 
       function calcolaPreviewPagination() {
         clearLayoutAdjustments();
+        pushOverflowingRows();
         repeatTableHeaderForPreview();
 
         var pageHeight = A4_HEIGHT_UNSCALED;
