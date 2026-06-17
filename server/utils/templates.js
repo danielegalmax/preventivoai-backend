@@ -72,8 +72,7 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
 
   const pageBreakScript = generaPageBreakScript()
 
-return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=500, initial-scale=0.7, shrink-to-fit=yes"><link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet"><style>@media print{.page-break-marker,[data-page-break="true"]{page-break-before:always;break-before:page}}</style></head><body>${templates[template] || templates.pulito}${pageBreakScript}</body></html>`
-
+return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=500, initial-scale=0.7, shrink-to-fit=yes"><link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" rel="stylesheet"><style>@media print{thead{display:table-row-group}}</style></head><body>${templates[template] || templates.pulito}${pageBreakScript}</body></html>`
 }
 
 module.exports = { generaHTML, parsaPreventivo }
