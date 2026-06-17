@@ -8,7 +8,13 @@ function generaHTML(testo, template, dati) {
   const logoHtml = logo ? `<img src="${logo}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ''
   const p = parsaPreventivo(testo)
   const coloreHex = colore.startsWith('#') ? colore : `#${colore}`
-  const canoneMensileHtml = p.canoneMensile ? `<div style="margin-top:12px;padding:12px 16px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;font-size:12px;color:#3730a3"><strong>Canone mensile:</strong> ${p.canoneMensile}</div>` : ''
+  const canoneMensileHtml = p.canoneMensile ? (() => {
+    const righe = [
+      p.canoneMensile,
+      p.canoneScadenza ? `Primo canone: ${p.canoneScadenza}` : '',
+    ].filter(Boolean).join('<br>')
+    return `<div style="margin-top:12px;padding:12px 16px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;font-size:12px;color:#3730a3"><strong>Canone mensile:</strong><br>${righe}</div>`
+  })() : ''
   const pagamentoRateHtml = p.pagamentoRate && p.pagamentoRate.numero ? (() => {
     const righe = [
       p.pagamentoRate.numero,
