@@ -17,14 +17,6 @@ function generaPageBreakScript() {
         return 1;
       }
 
-      function getTop(el) {
-        return el.getBoundingClientRect().top + window.scrollY;
-      }
-
-      function getBottom(el) {
-        return el.getBoundingClientRect().bottom + window.scrollY;
-      }
-
       function getLayoutTop(el) {
         var scale = getBodyScale();
         return (el.getBoundingClientRect().top + window.scrollY) / scale;
@@ -35,10 +27,6 @@ function generaPageBreakScript() {
         return (el.getBoundingClientRect().bottom + window.scrollY) / scale;
       }
 
-      function pageLimit(pageStart, pageHeight) {
-        return pageStart + pageHeight - PAGE_BOTTOM_MARGIN;
-      }
-
       function clearLayoutAdjustments() {
         document.querySelectorAll('[data-page-spacer]').forEach(function (spacer) {
           spacer.remove();
@@ -46,19 +34,6 @@ function generaPageBreakScript() {
         document.querySelectorAll('[data-repeated-header]').forEach(function (el) {
           el.remove();
         });
-        document.querySelectorAll('[data-page-break]').forEach(function (el) {
-          el.removeAttribute('data-page-break');
-          el.classList.remove('page-break-marker');
-          el.style.pageBreakBefore = '';
-          el.style.breakBefore = '';
-        });
-      }
-
-      function markBreakBefore(el) {
-        el.setAttribute('data-page-break', 'true');
-        el.classList.add('page-break-marker');
-        el.style.pageBreakBefore = 'always';
-        el.style.breakBefore = 'page';
       }
 
       function injectSpacerBefore(el, targetLayoutTop) {
@@ -97,7 +72,7 @@ function generaPageBreakScript() {
         });
       }
 
-      function repeatTableHeaderForPreview() {
+      function repeatTableHeader() {
         var table = document.querySelector('[data-section="servizi"] table');
         if (!table) return;
         var thead = table.querySelector('thead');
@@ -111,19 +86,6 @@ function generaPageBreakScript() {
           row.parentNode.insertBefore(clone, row);
           row.removeAttribute('data-page-start');
         });
-      }
-
-      function collectOrderedElements() {
-        var ordered = [];
-        Array.prototype.forEach.call(document.querySelectorAll('[data-paginate="intro-block"]'), function (el) {
-          ordered.push({ el: el, type: 'intro' });
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('[data-section="servizi"] tbody > tr'), function (el) {
-          ordered.push({ el: el, type: 'servizio' });
-        });
-        var footer = document.querySelector('[data-section="footer"]');
-        if (footer) ordered.push({ el: footer, type: 'footer' });
-        return ordered;
       }
 
       function applyPreviewShift() {
@@ -146,10 +108,10 @@ function generaPageBreakScript() {
         }
       }
 
-      function calcolaPreviewPagination() {
+      function calcolaPagination() {
         clearLayoutAdjustments();
         pushOverflowingRows();
-        repeatTableHeaderForPreview();
+        repeatTableHeader();
 
         var pageHeight = A4_HEIGHT_UNSCALED;
         var footer = document.querySelector('[data-section="footer"]');
@@ -178,63 +140,11 @@ function generaPageBreakScript() {
         }
       }
 
-      function calcolaPdfPageBreaks() {
-        clearLayoutAdjustments();
-
-        var PAGE_HEIGHT = A4_HEIGHT_UNSCALED;
-        var ordered = collectOrderedElements();
-        if (!ordered.length) return;
-
-        var currentPageStart = 0;
-        var lastBottom = 0;
-
-        var docBottom = getBottom(document.body);
-        if (docBottom <= PAGE_HEIGHT) return;
-
-        ordered.forEach(function (item) {
-          var el = item.el;
-          var top = getTop(el);
-          var bottom = getBottom(el);
-          var height = bottom - top;
-
-          if (item.type === 'footer') {
-            var usedOnPage = lastBottom - currentPageStart;
-            var spaceLeft = PAGE_HEIGHT - PAGE_BOTTOM_MARGIN - usedOnPage;
-            if (height > spaceLeft && lastBottom > currentPageStart) {
-              var targetTop = currentPageStart + PAGE_HEIGHT + PAGE_TOP_PADDING;
-              injectSpacerBefore(el, targetTop);
-              markBreakBefore(el);
-              currentPageStart = targetTop;
-            }
-            lastBottom = getBottom(el);
-            return;
-          }
-
-          if (bottom > pageLimit(currentPageStart, PAGE_HEIGHT)) {
-            var targetTop = currentPageStart + PAGE_HEIGHT + PAGE_TOP_PADDING;
-            if (top < targetTop) {
-              injectSpacerBefore(el, targetTop);
-              markBreakBefore(el);
-              currentPageStart = targetTop - PAGE_TOP_PADDING;
-              bottom = targetTop + height;
-            } else {
-              currentPageStart = Math.floor(top / PAGE_HEIGHT) * PAGE_HEIGHT;
-            }
-          }
-
-          lastBottom = bottom;
-        });
-      }
-
       function calcolaPageBreaks() {
         if (paginationDone) return;
         paginationDone = true;
 
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          calcolaPreviewPagination();
-        } else {
-          calcolaPdfPageBreaks();
-        }
+        calcolaPagination();
 
         window.__preventivoPaginationReady = true;
       }
