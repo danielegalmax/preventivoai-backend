@@ -16,6 +16,15 @@ function generaPageBreakScript() {
         return 1;
       }
 
+      function getPageHeight() {
+        if (window.ReactNativeWebView && window.__PREVIEW_FRAME_HEIGHT > 0) {
+          return Math.round(window.__PREVIEW_FRAME_HEIGHT);
+        }
+        var scale = getBodyScale();
+        if (scale < 0.99) return Math.round(A4_HEIGHT_UNSCALED * scale);
+        return A4_HEIGHT_UNSCALED;
+      }
+
       function getTop(el) {
         return el.getBoundingClientRect().top + window.scrollY;
       }
@@ -100,10 +109,7 @@ function generaPageBreakScript() {
 
         clearLayoutAdjustments();
 
-        var scale = getBodyScale();
-        var PAGE_HEIGHT = Math.round(A4_HEIGHT_UNSCALED * scale);
-        if (PAGE_HEIGHT < 200) PAGE_HEIGHT = Math.round(A4_HEIGHT_UNSCALED * 0.45);
-
+        var PAGE_HEIGHT = getPageHeight();
         var ordered = collectOrderedElements();
         if (!ordered.length) {
           paginationDone = true;
