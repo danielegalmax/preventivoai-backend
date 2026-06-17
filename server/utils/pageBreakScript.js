@@ -3,6 +3,7 @@ function generaPageBreakScript() {
     (function () {
       var A4_HEIGHT_UNSCALED = 1123;
       var PAGE_BOTTOM_MARGIN = 24;
+      var paginationDone = false;
 
       function getBodyScale() {
         var t = window.getComputedStyle(document.body).transform;
@@ -23,16 +24,8 @@ function generaPageBreakScript() {
         return el.getBoundingClientRect().bottom + window.scrollY;
       }
 
-      function pageBottom(pageStart, pageHeight) {
+      function pageLimit(pageStart, pageHeight) {
         return pageStart + pageHeight - PAGE_BOTTOM_MARGIN;
-      }
-
-      function pageStartForY(y, pageHeight) {
-        return Math.floor(y / pageHeight) * pageHeight;
-      }
-
-      function nextPageStart(y, pageHeight) {
-        return pageStartForY(y, pageHeight) + pageHeight;
       }
 
       function clearLayoutAdjustments() {
@@ -57,7 +50,7 @@ function generaPageBreakScript() {
       function injectSpacerBefore(el, targetTop) {
         var top = getTop(el);
         var height = Math.round(targetTop - top);
-        if (height < 4) return;
+        if (height < 4) return false;
         var spacer = document.createElement('div');
         spacer.className = 'page-layout-spacer';
         spacer.setAttribute('data-page-spacer', 'true');
@@ -65,6 +58,7 @@ function generaPageBreakScript() {
         spacer.style.width = '100%';
         spacer.style.flexShrink = '0';
         el.parentNode.insertBefore(spacer, el);
+        return true;
       }
 
       function collectOrderedElements() {
@@ -82,6 +76,8 @@ function generaPageBreakScript() {
 
       function postMessage(totalPages, pageOffsets, breakPoints, pageHeight) {
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
+          if (pageIndex !== 0) return;
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'page-breaks',
             pageHeightPx: pageHeight,
@@ -92,7 +88,16 @@ function generaPageBreakScript() {
         }
       }
 
+      function applyPreviewShift(pageHeight) {
+        var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
+        if (pageIndex > 0) {
+          document.body.style.marginTop = '-' + (pageIndex * pageHeight) + 'px';
+        }
+      }
+
       function calcolaPageBreaks() {
+        if (paginationDone) return;
+
         clearLayoutAdjustments();
 
         var scale = getBodyScale();
@@ -101,13 +106,8 @@ function generaPageBreakScript() {
 
         var ordered = collectOrderedElements();
         if (!ordered.length) {
-          postMessage(1, [0], [], PAGE_HEIGHT);
-          window.__preventivoPaginationReady = true;
-          return;
-        }
-
-        var docBottom = getBottom(document.body);
-        if (docBottom <= PAGE_HEIGHT) {
+          paginationDone = true;
+          applyPreviewShift(PAGE_HEIGHT);
           postMessage(1, [0], [], PAGE_HEIGHT);
           window.__preventivoPaginationReady = true;
           return;
@@ -117,6 +117,15 @@ function generaPageBreakScript() {
         var currentPageStart = 0;
         var lastBottom = 0;
 
+        var docBottom = getBottom(document.body);
+        if (docBottom <= PAGE_HEIGHT) {
+          paginationDone = true;
+          applyPreviewShift(PAGE_HEIGHT);
+          postMessage(1, [0], [], PAGE_HEIGHT);
+          window.__preventivoPaginationReady = true;
+          return;
+        }
+
         ordered.forEach(function (item) {
           var el = item.el;
           var top = getTop(el);
@@ -124,50 +133,53 @@ function generaPageBreakScript() {
           var height = bottom - top;
 
           if (item.type === 'footer') {
-            var spaceLeft = pageBottom(currentPageStart, PAGE_HEIGHT) - lastBottom;
+            var usedOnPage = lastBottom - currentPageStart;
+            var spaceLeft = PAGE_HEIGHT - PAGE_BOTTOM_MARGIN - usedOnPage;
             if (height > spaceLeft && lastBottom > currentPageStart) {
-              var targetTop = nextPageStart(lastBottom, PAGE_HEIGHT);
+              var targetTop = currentPageStart + PAGE_HEIGHT;
               injectSpacerBefore(el, targetTop);
               markBreakBefore(el);
               top = getTop(el);
               bottom = getBottom(el);
-              currentPageStart = pageStartForY(top, PAGE_HEIGHT);
+              currentPageStart = targetTop;
               breakPoints.push({ page: Math.round(currentPageStart / PAGE_HEIGHT) + 1, offsetTop: Math.round(top), tag: 'footer' });
             }
             lastBottom = bottom;
             return;
           }
 
-          if (top - currentPageStart >= PAGE_HEIGHT) {
-            currentPageStart = pageStartForY(top, PAGE_HEIGHT);
-          }
-
-          if (bottom > pageBottom(currentPageStart, PAGE_HEIGHT)) {
-            var targetTop = nextPageStart(top, PAGE_HEIGHT);
-            injectSpacerBefore(el, targetTop);
-            markBreakBefore(el);
-            top = getTop(el);
-            bottom = getBottom(el);
-            currentPageStart = pageStartForY(top, PAGE_HEIGHT);
-            breakPoints.push({ page: Math.round(currentPageStart / PAGE_HEIGHT) + 1, offsetTop: Math.round(top), tag: item.type });
+          if (bottom > pageLimit(currentPageStart, PAGE_HEIGHT)) {
+            var targetTop = currentPageStart + PAGE_HEIGHT;
+            if (top < targetTop) {
+              injectSpacerBefore(el, targetTop);
+              markBreakBefore(el);
+              top = getTop(el);
+              bottom = getBottom(el);
+              currentPageStart = targetTop;
+              breakPoints.push({ page: Math.round(currentPageStart / PAGE_HEIGHT) + 1, offsetTop: Math.round(top), tag: item.type });
+            } else {
+              currentPageStart = Math.floor(top / PAGE_HEIGHT) * PAGE_HEIGHT;
+            }
           }
 
           lastBottom = bottom;
         });
 
-        docBottom = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        var totalPages = Math.max(1, Math.ceil(docBottom / PAGE_HEIGHT));
+        var totalPages = Math.max(1, Math.ceil(lastBottom / PAGE_HEIGHT));
         var pageOffsets = [];
         for (var i = 0; i < totalPages; i++) pageOffsets.push(i * PAGE_HEIGHT);
 
+        paginationDone = true;
+        applyPreviewShift(PAGE_HEIGHT);
         postMessage(totalPages, pageOffsets, breakPoints, PAGE_HEIGHT);
         window.__preventivoPaginationReady = true;
       }
 
-      window.addEventListener('load', calcolaPageBreaks);
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(calcolaPageBreaks);
-      setTimeout(calcolaPageBreaks, 300);
-      setTimeout(calcolaPageBreaks, 1000);
+      window.addEventListener('load', function () { setTimeout(calcolaPageBreaks, 100); });
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () { setTimeout(calcolaPageBreaks, 100); });
+      }
+      setTimeout(calcolaPageBreaks, 600);
     })();
   </script>`
 }
