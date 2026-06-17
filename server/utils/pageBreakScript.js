@@ -3,6 +3,7 @@ function generaPageBreakScript() {
     (function () {
       var A4_HEIGHT_UNSCALED = 1123;
       var PAGE_BOTTOM_MARGIN = 24;
+      var PAGE_TOP_PADDING = 40;
       var paginationDone = false;
 
       function getBodyScale() {
@@ -132,7 +133,7 @@ function generaPageBreakScript() {
           var docBottomPre = getLayoutBottom(document.body);
 
           if (docBottomPre > pageHeight && footerHeight > spaceLeft) {
-            var targetTop = pageStart + pageHeight;
+            var targetTop = pageStart + pageHeight + PAGE_TOP_PADDING;
             spacerInserted = injectSpacerBefore(footer, targetTop);
           }
         }
@@ -191,7 +192,7 @@ function generaPageBreakScript() {
             var usedOnPage = lastBottom - currentPageStart;
             var spaceLeft = PAGE_HEIGHT - PAGE_BOTTOM_MARGIN - usedOnPage;
             if (height > spaceLeft && lastBottom > currentPageStart) {
-              var targetTop = currentPageStart + PAGE_HEIGHT;
+              var targetTop = currentPageStart + PAGE_HEIGHT + PAGE_TOP_PADDING;
               injectSpacerBefore(el, targetTop);
               markBreakBefore(el);
               currentPageStart = targetTop;
