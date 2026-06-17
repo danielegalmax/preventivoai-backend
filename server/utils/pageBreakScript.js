@@ -91,7 +91,8 @@ function generaPageBreakScript() {
           var pageStart = Math.floor(top / pageHeight) * pageHeight;
           var limit = pageStart + pageHeight - PAGE_BOTTOM_MARGIN;
           if (bottom > limit) {
-            injectSpacerBefore(row, pageStart + pageHeight);
+            var pushed = injectSpacerBefore(row, pageStart + pageHeight + PAGE_TOP_PADDING);
+            if (pushed) row.setAttribute('data-page-start', 'true');
           }
         });
       }
@@ -103,19 +104,12 @@ function generaPageBreakScript() {
         var headerRow = thead ? thead.querySelector('tr') : null;
         if (!headerRow) return;
 
-        var pageHeight = A4_HEIGHT_UNSCALED;
-        var lastPageIndex = 0;
-        var rows = table.querySelectorAll('tbody > tr:not([data-repeated-header])');
-
+        var rows = table.querySelectorAll('tbody > tr[data-page-start]');
         Array.prototype.forEach.call(rows, function (row) {
-          var top = getLayoutTop(row);
-          var pageIndex = Math.floor(top / pageHeight);
-          if (pageIndex > lastPageIndex) {
-            var clone = headerRow.cloneNode(true);
-            clone.setAttribute('data-repeated-header', 'true');
-            row.parentNode.insertBefore(clone, row);
-            lastPageIndex = pageIndex;
-          }
+          var clone = headerRow.cloneNode(true);
+          clone.setAttribute('data-repeated-header', 'true');
+          row.parentNode.insertBefore(clone, row);
+          row.removeAttribute('data-page-start');
         });
       }
 
