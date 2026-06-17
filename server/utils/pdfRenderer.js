@@ -8,12 +8,14 @@ async function generaPdfBufferDaHtml(html) {
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
     const page = await browser.newPage()
+    await page.setViewport({ width: 800, height: 1123 })
     await page.setContent(html, { waitUntil: 'networkidle0' })
     await page.waitForFunction('window.__preventivoPaginationReady === true', { timeout: 8000 }).catch(() => {})
     return await page.pdf({
-      format: 'A4',
+      width: '800px',
+      height: '1123px',
       printBackground: true,
-      preferCSSPageSize: true
+      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
     })
   } finally {
     if (browser) await browser.close()
