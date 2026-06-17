@@ -2,7 +2,7 @@ function generaPageBreakScript() {
   return `<script>
     (function () {
       var A4_HEIGHT_UNSCALED = 1123;
-      var PAGE_BOTTOM_MARGIN = 24;
+      var PAGE_BOTTOM_MARGIN = 50;
       var PAGE_TOP_PADDING = 40;
       var paginationDone = false;
 
@@ -211,11 +211,12 @@ function generaPageBreakScript() {
           }
 
           if (bottom > pageLimit(currentPageStart, PAGE_HEIGHT)) {
-            var targetTop = currentPageStart + PAGE_HEIGHT;
+            var targetTop = currentPageStart + PAGE_HEIGHT + PAGE_TOP_PADDING;
             if (top < targetTop) {
               injectSpacerBefore(el, targetTop);
               markBreakBefore(el);
-              currentPageStart = targetTop;
+              currentPageStart = targetTop - PAGE_TOP_PADDING;
+              bottom = targetTop + height;
             } else {
               currentPageStart = Math.floor(top / PAGE_HEIGHT) * PAGE_HEIGHT;
             }
