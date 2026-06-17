@@ -12,6 +12,7 @@ function parsaPreventivo(testo) {
   let note = ''
   let pagamento = ''
   let canoneMensile = ''
+  let pagamentoRate = null
   let contatti = ''
   let rimborsi = []
   let rimborsoCorrente = null
@@ -103,6 +104,26 @@ function parsaPreventivo(testo) {
     if (riga.startsWith('TOTALE:')) { totale = riga.replace('TOTALE:', '').trim(); continue }
     if (riga.startsWith('Note:')) { note = riga.replace('Note:', '').trim(); continue }
     if (riga.startsWith('CANONE MENSILE:')) { canoneMensile = riga.replace('CANONE MENSILE:', '').trim(); continue }
+    if (riga.startsWith('PAGAMENTO A RATE:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.numero = riga.replace('PAGAMENTO A RATE:', '').trim()
+      continue
+    }
+    if (riga.startsWith('IMPORTO RATA:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.importoRata = riga.replace('IMPORTO RATA:', '').trim()
+      continue
+    }
+    if (riga.startsWith('ULTIMA RATA:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.ultimaRata = riga.replace('ULTIMA RATA:', '').trim()
+      continue
+    }
+    if (riga.startsWith('SCADENZA PRIMA RATA:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.scadenza = riga.replace('SCADENZA PRIMA RATA:', '').trim()
+      continue
+    }
     if (riga.startsWith('PAGAMENTO:')) { pagamento = riga.replace('PAGAMENTO:', '').trim(); continue }
     if (riga.startsWith('IBAN:') && pagamento) { pagamento += '  IBAN ' + riga.replace('IBAN:', '').trim(); continue }
     if (riga.startsWith('Intestatario:') && pagamento) { pagamento += '  ' + riga.replace('Intestatario:', '').trim(); continue }
@@ -118,7 +139,7 @@ function parsaPreventivo(testo) {
 
   if (servizioCorrente) voci.push(servizioCorrente)
   if (rimborsoCorrente) rimborsi.push(rimborsoCorrente)
-  return { titolo, data, validita, problema, voci, rimborsi, imponibile, iva, totale, note, pagamento, canoneMensile, contatti }
+  return { titolo, data, validita, problema, voci, rimborsi, imponibile, iva, totale, note, pagamento, canoneMensile, pagamentoRate, contatti }
 }
 
 module.exports = { parsaPreventivo }
