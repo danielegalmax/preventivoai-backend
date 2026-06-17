@@ -43,6 +43,9 @@ function generaPageBreakScript() {
         document.querySelectorAll('[data-page-spacer]').forEach(function (spacer) {
           spacer.remove();
         });
+        document.querySelectorAll('[data-repeated-header]').forEach(function (el) {
+          el.remove();
+        });
         document.querySelectorAll('[data-page-break]').forEach(function (el) {
           el.removeAttribute('data-page-break');
           el.classList.remove('page-break-marker');
@@ -73,10 +76,33 @@ function generaPageBreakScript() {
       }
 
       function getLastServiziBottom() {
-        var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr');
+        var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr:not([data-repeated-header])');
         if (rows.length) return getLayoutBottom(rows[rows.length - 1]);
         var section = document.querySelector('[data-section="servizi"]');
         return section ? getLayoutBottom(section) : 0;
+      }
+
+      function repeatTableHeaderForPreview() {
+        var table = document.querySelector('[data-section="servizi"] table');
+        if (!table) return;
+        var thead = table.querySelector('thead');
+        var headerRow = thead ? thead.querySelector('tr') : null;
+        if (!headerRow) return;
+
+        var pageHeight = A4_HEIGHT_UNSCALED;
+        var lastPageIndex = 0;
+        var rows = table.querySelectorAll('tbody > tr:not([data-repeated-header])');
+
+        Array.prototype.forEach.call(rows, function (row) {
+          var top = getLayoutTop(row);
+          var pageIndex = Math.floor(top / pageHeight);
+          if (pageIndex > lastPageIndex) {
+            var clone = headerRow.cloneNode(true);
+            clone.setAttribute('data-repeated-header', 'true');
+            row.parentNode.insertBefore(clone, row);
+            lastPageIndex = pageIndex;
+          }
+        });
       }
 
       function collectOrderedElements() {
@@ -114,6 +140,7 @@ function generaPageBreakScript() {
 
       function calcolaPreviewPagination() {
         clearLayoutAdjustments();
+        repeatTableHeaderForPreview();
 
         var pageHeight = A4_HEIGHT_UNSCALED;
         var footer = document.querySelector('[data-section="footer"]');
