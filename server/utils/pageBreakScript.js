@@ -5,12 +5,33 @@ function generaPageBreakScript() {
       var PAGE_BOTTOM_MARGIN = 24;
       var paginationDone = false;
 
+      function getBodyScale() {
+        var t = window.getComputedStyle(document.body).transform;
+        if (!t || t === 'none') return 1;
+        var m = t.match(/matrix\\(([^)]+)\\)/);
+        if (m) {
+          var parts = m[1].split(',');
+          return parseFloat(parts[0]) || 1;
+        }
+        return 1;
+      }
+
       function getTop(el) {
         return el.getBoundingClientRect().top + window.scrollY;
       }
 
       function getBottom(el) {
         return el.getBoundingClientRect().bottom + window.scrollY;
+      }
+
+      function getLayoutTop(el) {
+        var scale = getBodyScale();
+        return (el.getBoundingClientRect().top + window.scrollY) / scale;
+      }
+
+      function getLayoutBottom(el) {
+        var scale = getBodyScale();
+        return (el.getBoundingClientRect().bottom + window.scrollY) / scale;
       }
 
       function pageLimit(pageStart, pageHeight) {
@@ -36,9 +57,9 @@ function generaPageBreakScript() {
         el.style.breakBefore = 'page';
       }
 
-      function injectSpacerBefore(el, targetTop) {
-        var top = getTop(el);
-        var height = Math.round(targetTop - top);
+      function injectSpacerBefore(el, targetLayoutTop) {
+        var top = getLayoutTop(el);
+        var height = Math.round(targetLayoutTop - top);
         if (height < 4) return false;
         var spacer = document.createElement('div');
         spacer.className = 'page-layout-spacer';
@@ -48,6 +69,25 @@ function generaPageBreakScript() {
         spacer.style.flexShrink = '0';
         el.parentNode.insertBefore(spacer, el);
         return true;
+      }
+
+      function getPreviewMarginStep() {
+        if (window.__PREVIEW_FRAME_STEP > 0) return Math.round(window.__PREVIEW_FRAME_STEP);
+        return A4_HEIGHT_UNSCALED;
+      }
+
+      function getPreviewLayoutPageHeight() {
+        var marginStep = getPreviewMarginStep();
+        var scale = getBodyScale();
+        if (scale < 0.99) return marginStep / scale;
+        return A4_HEIGHT_UNSCALED;
+      }
+
+      function getLastServiziBottom() {
+        var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr');
+        if (rows.length) return getLayoutBottom(rows[rows.length - 1]);
+        var section = document.querySelector('[data-section="servizi"]');
+        return section ? getLayoutBottom(section) : 0;
       }
 
       function collectOrderedElements() {
@@ -63,15 +103,53 @@ function generaPageBreakScript() {
         return ordered;
       }
 
-      function calcolaPreviewPageCount() {
-        var docHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        var totalPages = Math.max(1, Math.ceil(docHeight / A4_HEIGHT_UNSCALED));
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'page-breaks',
-          pageHeightPx: A4_HEIGHT_UNSCALED,
-          totalPages: totalPages,
-          breakPoints: []
-        }));
+      function applyPreviewShift(marginStep) {
+        var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
+        if (pageIndex > 0) {
+          document.body.style.marginTop = '-' + (pageIndex * marginStep) + 'px';
+        }
+      }
+
+      function postPreviewMessage(totalPages) {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'page-breaks',
+            pageHeightPx: A4_HEIGHT_UNSCALED,
+            totalPages: totalPages,
+            breakPoints: []
+          }));
+        }
+      }
+
+      function calcolaPreviewPagination() {
+        clearLayoutAdjustments();
+
+        var marginStep = getPreviewMarginStep();
+        var pageHeight = getPreviewLayoutPageHeight();
+        var footer = document.querySelector('[data-section="footer"]');
+        var lastBottom = getLastServiziBottom();
+
+        if (footer && lastBottom > 0) {
+          var footerTop = getLayoutTop(footer);
+          var footerHeight = getLayoutBottom(footer) - footerTop;
+          var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
+          var usedOnPage = lastBottom - pageStart;
+          var spaceLeft = pageHeight - PAGE_BOTTOM_MARGIN - usedOnPage;
+          var docBottom = getLayoutBottom(document.body);
+
+          if (docBottom > pageHeight && footerHeight > spaceLeft) {
+            var targetTop = pageStart + pageHeight;
+            injectSpacerBefore(footer, targetTop);
+          }
+        }
+
+        var totalPages = Math.max(1, Math.ceil(getLayoutBottom(document.body) / pageHeight));
+
+        applyPreviewShift(marginStep);
+
+        if ((window.__PREVIEW_PAGE_INDEX || 0) === 0) {
+          postPreviewMessage(totalPages);
+        }
       }
 
       function calcolaPdfPageBreaks() {
@@ -81,7 +159,6 @@ function generaPageBreakScript() {
         var ordered = collectOrderedElements();
         if (!ordered.length) return;
 
-        var breakPoints = [];
         var currentPageStart = 0;
         var lastBottom = 0;
 
@@ -101,12 +178,9 @@ function generaPageBreakScript() {
               var targetTop = currentPageStart + PAGE_HEIGHT;
               injectSpacerBefore(el, targetTop);
               markBreakBefore(el);
-              top = getTop(el);
-              bottom = getBottom(el);
               currentPageStart = targetTop;
-              breakPoints.push({ page: Math.round(currentPageStart / PAGE_HEIGHT) + 1, offsetTop: Math.round(top), tag: 'footer' });
             }
-            lastBottom = bottom;
+            lastBottom = getBottom(el);
             return;
           }
 
@@ -115,10 +189,7 @@ function generaPageBreakScript() {
             if (top < targetTop) {
               injectSpacerBefore(el, targetTop);
               markBreakBefore(el);
-              top = getTop(el);
-              bottom = getBottom(el);
               currentPageStart = targetTop;
-              breakPoints.push({ page: Math.round(currentPageStart / PAGE_HEIGHT) + 1, offsetTop: Math.round(top), tag: item.type });
             } else {
               currentPageStart = Math.floor(top / PAGE_HEIGHT) * PAGE_HEIGHT;
             }
@@ -133,7 +204,7 @@ function generaPageBreakScript() {
         paginationDone = true;
 
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          calcolaPreviewPageCount();
+          calcolaPreviewPagination();
         } else {
           calcolaPdfPageBreaks();
         }
