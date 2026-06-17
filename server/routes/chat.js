@@ -1,9 +1,10 @@
 ﻿const express = require('express')
 const router = express.Router()
-const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { trackAI, trackEvento } = require('../utils/analytics')
 const { sendError } = require('../utils/http')
+const { creaMessaggioClaude } = require('../utils/aiClient')
+const { caricaClienteChat, caricaProfiloChat, caricaProfiloConvertiRecap, caricaServiziChat } = require('../utils/chatData')
 
 router.post('/api/chat', async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -14,26 +15,13 @@ router.post('/api/chat', async (req, res) => {
     return res.status(400).json({ error: 'messages mancanti' })
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('nome_azienda, citta, piva, telefono, listino, tono, categoria')
-    .eq('id', user.id)
-    .single()
-
-  const { data: servizi } = await supabase
-    .from('servizi')
-    .select('nome, descrizione, costo, unita')
-    .eq('user_id', user.id)
-    .order('ordine', { ascending: true })
+  const profile = await caricaProfiloChat(user.id)
+  const servizi = await caricaServiziChat(user.id)
 
   // Carica dati cliente se disponibile
   let clienteTesto = ''
   if (cliente_id) {
-    const { data: cliente } = await supabase
-      .from('clienti')
-      .select('nome, telefono, email, indirizzo, note')
-      .eq('id', cliente_id)
-      .single()
+    const cliente = await caricaClienteChat(cliente_id)
     if (cliente) {
       clienteTesto = `\nCLIENTE PER QUESTO PREVENTIVO:\n- Nome: ${cliente.nome}${cliente.telefono ? '\n- Telefono: ' + cliente.telefono : ''}${cliente.email ? '\n- Email: ' + cliente.email : ''}${cliente.indirizzo ? '\n- Indirizzo: ' + cliente.indirizzo : ''}${cliente.note ? '\n- Note: ' + cliente.note : ''}`
     }
@@ -149,9 +137,7 @@ REGOLE:
 - Tono: ${profile.tono || 'professionale e diretto'}.`
 
   try {
-    const inizio = Date.now()
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const { response, latenzaMs } = await creaMessaggioClaude({
       max_tokens: 1024,
       system,
       messages
@@ -163,7 +149,7 @@ REGOLE:
       endpoint: '/api/chat',
       tokenInput: response.usage.input_tokens,
       tokenOutput: response.usage.output_tokens,
-      latenzaMs: Date.now() - inizio
+      latenzaMs
     })
     trackEvento({ userId: user.id, evento: 'chat_messaggio', schermata: 'chat', dati: { ha_recap: reply.includes('RECAP_PRONTO') } })
     
@@ -180,15 +166,9 @@ router.post('/api/converti-recap', express.json(), async (req, res) => {
   if (!user) return
   try {
     const { recap } = req.body
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('nome_azienda, citta, piva, telefono')
-      .eq('id', user.id)
-      .single()
+    const profile = await caricaProfiloConvertiRecap(user.id)
 
-    const inizio = Date.now()
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const { response, latenzaMs } = await creaMessaggioClaude({
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -232,7 +212,7 @@ TOTALE NETTO: EUR XX`
       endpoint: '/api/converti-recap',
       tokenInput: response.usage.input_tokens,
       tokenOutput: response.usage.output_tokens,
-      latenzaMs: Date.now() - inizio
+      latenzaMs
     })
     res.json({ preventivo: response.content[0].text.trim() })
   } catch (err) {

@@ -1,8 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { sendError } = require('../utils/http')
+const { cercaClientiPerNome, creaClienteChat } = require('../utils/clientiData')
 
 router.post('/api/cerca-cliente', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -10,13 +10,8 @@ router.post('/api/cerca-cliente', express.json(), async (req, res) => {
   try {
     const { nome } = req.body
     if (!nome) return res.json({ risultati: [] })
-    const { data } = await supabase
-      .from('clienti')
-      .select('id, nome, telefono, email, indirizzo, note')
-      .eq('user_id', user.id)
-      .ilike('nome', `%${nome}%`)
-      .limit(5)
-    res.json({ risultati: data || [] })
+    const risultati = await cercaClientiPerNome(user.id, nome)
+    res.json({ risultati })
   } catch (err) {
     sendError(res, err)
   }
@@ -28,10 +23,7 @@ router.post('/api/crea-cliente-da-chat', express.json(), async (req, res) => {
   if (!user) return
   try {
     const { nome, telefono, email, indirizzo } = req.body
-    const { data, error } = await supabase
-      .from('clienti')
-      .insert({ user_id: user.id, nome, telefono: telefono || null, email: email || null, indirizzo: indirizzo || null })
-      .select().single()
+    const { data, error } = await creaClienteChat({ userId: user.id, nome, telefono, email, indirizzo })
     if (error) return res.status(500).json({ error: error.message })
     res.json({ cliente: data })
   } catch (err) {

@@ -1,14 +1,16 @@
 const express = require('express')
 const router = express.Router()
-const { anthropic, supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { asyncRoute, sendError } = require('../utils/http')
 const { trackAI, trackEvento } = require('../utils/analytics')
+const { salvaLogoProfilo } = require('../utils/logoStorage')
+const { creaMessaggioClaude } = require('../utils/aiClient')
+const { caricaProfilo } = require('../utils/profiloData')
 
 router.get('/api/profilo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data, error } = await caricaProfilo(user.id)
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
 }))
@@ -20,11 +22,9 @@ router.post('/api/upload-logo', express.json(), async (req, res) => {
   if (!user) return
   try {
     const { logo_base64, mime_type } = req.body
-    const { error } = await supabase.storage.from('loghi').upload(`${user.id}/logo`, Buffer.from(logo_base64, 'base64'), { contentType: mime_type || 'image/png', upsert: true })
+    const { logoUrl, error } = await salvaLogoProfilo({ userId: user.id, logoBase64: logo_base64, mimeType: mime_type })
     if (error) return res.status(500).json({ error: error.message })
-    const { data: urlData } = supabase.storage.from('loghi').getPublicUrl(`${user.id}/logo`)
-    await supabase.from('profiles').update({ logo_url: urlData.publicUrl }).eq('id', user.id)
-    res.json({ logo_url: urlData.publicUrl })
+    res.json({ logo_url: logoUrl })
   } catch (err) {
     sendError(res, err)
   }
@@ -48,9 +48,7 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
         ]
       : `${prompt}\n\nListino:\n${testo}`
 
-    const inizio = Date.now()
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const { response, latenzaMs } = await creaMessaggioClaude({
       max_tokens: 1000,
       messages: [{ role: 'user', content }]
     })
@@ -60,7 +58,7 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
       endpoint: '/api/elabora-servizi',
       tokenInput: response.usage.input_tokens,
       tokenOutput: response.usage.output_tokens,
-      latenzaMs: Date.now() - inizio
+      latenzaMs
     })
     trackEvento({ userId: user.id, evento: 'listino_smart', schermata: 'settings', dati: { tipo: immagine_base64 ? 'foto' : 'testo' } })
     const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim()
