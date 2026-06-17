@@ -101,14 +101,13 @@ function generaPageBreakScript() {
         }
       }
 
-      function postPreviewMessage(totalPages, debug) {
+      function postPreviewMessage(totalPages) {
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'page-breaks',
             pageHeightPx: A4_HEIGHT_UNSCALED,
             totalPages: totalPages,
-            breakPoints: [],
-            debug: debug
+            breakPoints: []
           }));
         }
       }
@@ -117,55 +116,29 @@ function generaPageBreakScript() {
         clearLayoutAdjustments();
 
         var pageHeight = A4_HEIGHT_UNSCALED;
-        var scale = getBodyScale();
         var footer = document.querySelector('[data-section="footer"]');
         var lastBottom = getLastServiziBottom();
-        var footerHeight = 0;
-        var spaceLeft = 0;
-        var spacerInserted = false;
 
         if (footer && lastBottom > 0) {
           var footerTop = getLayoutTop(footer);
-          footerHeight = getLayoutBottom(footer) - footerTop;
+          var footerHeight = getLayoutBottom(footer) - footerTop;
           var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
           var usedOnPage = lastBottom - pageStart;
-          spaceLeft = pageHeight - PAGE_BOTTOM_MARGIN - usedOnPage;
+          var spaceLeft = pageHeight - PAGE_BOTTOM_MARGIN - usedOnPage;
           var docBottomPre = getLayoutBottom(document.body);
 
           if (docBottomPre > pageHeight && footerHeight > spaceLeft) {
             var targetTop = pageStart + pageHeight + PAGE_TOP_PADDING;
-            spacerInserted = injectSpacerBefore(footer, targetTop);
+            injectSpacerBefore(footer, targetTop);
           }
         }
 
-        var docBottom = getLayoutBottom(document.body);
-        var totalPages = Math.max(1, Math.ceil(docBottom / pageHeight));
+        var totalPages = Math.max(1, Math.ceil(getLayoutBottom(document.body) / pageHeight));
 
         applyPreviewShift();
 
-        var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
-        var debug = {
-          pageIndex: pageIndex,
-          scale: Math.round(scale * 1000) / 1000,
-          lastBottom: Math.round(lastBottom),
-          footerHeight: Math.round(footerHeight),
-          spaceLeft: Math.round(spaceLeft),
-          spacerInserted: spacerInserted,
-          docBottom: Math.round(docBottom),
-          totalPages: totalPages,
-          marginTop: document.body.style.marginTop || '0px'
-        };
-
-        if (pageIndex === 0) {
-          postPreviewMessage(totalPages, debug);
-        } else {
-          postDebugMessage(debug);
-        }
-      }
-
-      function postDebugMessage(debug) {
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'page-debug', debug: debug }));
+        if ((window.__PREVIEW_PAGE_INDEX || 0) === 0) {
+          postPreviewMessage(totalPages);
         }
       }
 
