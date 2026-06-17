@@ -5,26 +5,6 @@ function generaPageBreakScript() {
       var PAGE_BOTTOM_MARGIN = 24;
       var paginationDone = false;
 
-      function getBodyScale() {
-        var t = window.getComputedStyle(document.body).transform;
-        if (!t || t === 'none') return 1;
-        var m = t.match(/matrix\\(([^)]+)\\)/);
-        if (m) {
-          var parts = m[1].split(',');
-          return parseFloat(parts[0]) || 1;
-        }
-        return 1;
-      }
-
-      function getPageHeight() {
-        if (window.ReactNativeWebView && window.__PREVIEW_FRAME_HEIGHT > 0) {
-          return Math.round(window.__PREVIEW_FRAME_HEIGHT);
-        }
-        var scale = getBodyScale();
-        if (scale < 0.99) return Math.round(A4_HEIGHT_UNSCALED * scale);
-        return A4_HEIGHT_UNSCALED;
-      }
-
       function getTop(el) {
         return el.getBoundingClientRect().top + window.scrollY;
       }
@@ -83,54 +63,30 @@ function generaPageBreakScript() {
         return ordered;
       }
 
-      function postMessage(totalPages, pageOffsets, breakPoints, pageHeight) {
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
-          if (pageIndex !== 0) return;
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'page-breaks',
-            pageHeightPx: pageHeight,
-            totalPages: totalPages,
-            pageOffsets: pageOffsets,
-            breakPoints: breakPoints
-          }));
-        }
+      function calcolaPreviewPageCount() {
+        var docHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        var totalPages = Math.max(1, Math.ceil(docHeight / A4_HEIGHT_UNSCALED));
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'page-breaks',
+          pageHeightPx: A4_HEIGHT_UNSCALED,
+          totalPages: totalPages,
+          breakPoints: []
+        }));
       }
 
-      function applyPreviewShift(pageHeight) {
-        var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
-        if (pageIndex > 0) {
-          document.body.style.marginTop = '-' + (pageIndex * pageHeight) + 'px';
-        }
-      }
-
-      function calcolaPageBreaks() {
-        if (paginationDone) return;
-
+      function calcolaPdfPageBreaks() {
         clearLayoutAdjustments();
 
-        var PAGE_HEIGHT = getPageHeight();
+        var PAGE_HEIGHT = A4_HEIGHT_UNSCALED;
         var ordered = collectOrderedElements();
-        if (!ordered.length) {
-          paginationDone = true;
-          applyPreviewShift(PAGE_HEIGHT);
-          postMessage(1, [0], [], PAGE_HEIGHT);
-          window.__preventivoPaginationReady = true;
-          return;
-        }
+        if (!ordered.length) return;
 
         var breakPoints = [];
         var currentPageStart = 0;
         var lastBottom = 0;
 
         var docBottom = getBottom(document.body);
-        if (docBottom <= PAGE_HEIGHT) {
-          paginationDone = true;
-          applyPreviewShift(PAGE_HEIGHT);
-          postMessage(1, [0], [], PAGE_HEIGHT);
-          window.__preventivoPaginationReady = true;
-          return;
-        }
+        if (docBottom <= PAGE_HEIGHT) return;
 
         ordered.forEach(function (item) {
           var el = item.el;
@@ -170,14 +126,18 @@ function generaPageBreakScript() {
 
           lastBottom = bottom;
         });
+      }
 
-        var totalPages = Math.max(1, Math.ceil(lastBottom / PAGE_HEIGHT));
-        var pageOffsets = [];
-        for (var i = 0; i < totalPages; i++) pageOffsets.push(i * PAGE_HEIGHT);
-
+      function calcolaPageBreaks() {
+        if (paginationDone) return;
         paginationDone = true;
-        applyPreviewShift(PAGE_HEIGHT);
-        postMessage(totalPages, pageOffsets, breakPoints, PAGE_HEIGHT);
+
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          calcolaPreviewPageCount();
+        } else {
+          calcolaPdfPageBreaks();
+        }
+
         window.__preventivoPaginationReady = true;
       }
 
