@@ -71,18 +71,6 @@ function generaPageBreakScript() {
         return true;
       }
 
-      function getPreviewMarginStep() {
-        if (window.__PREVIEW_FRAME_STEP > 0) return Math.round(window.__PREVIEW_FRAME_STEP);
-        return A4_HEIGHT_UNSCALED;
-      }
-
-      function getPreviewLayoutPageHeight() {
-        var marginStep = getPreviewMarginStep();
-        var scale = getBodyScale();
-        if (scale < 0.99) return marginStep / scale;
-        return A4_HEIGHT_UNSCALED;
-      }
-
       function getLastServiziBottom() {
         var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr');
         if (rows.length) return getLayoutBottom(rows[rows.length - 1]);
@@ -103,10 +91,12 @@ function generaPageBreakScript() {
         return ordered;
       }
 
-      function applyPreviewShift(marginStep) {
+      function applyPreviewShift() {
         var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
         if (pageIndex > 0) {
-          document.body.style.marginTop = '-' + (pageIndex * marginStep) + 'px';
+          var scale = getBodyScale();
+          var visualStep = Math.round(A4_HEIGHT_UNSCALED * scale);
+          document.body.style.marginTop = '-' + (pageIndex * visualStep) + 'px';
         }
       }
 
@@ -124,8 +114,7 @@ function generaPageBreakScript() {
       function calcolaPreviewPagination() {
         clearLayoutAdjustments();
 
-        var marginStep = getPreviewMarginStep();
-        var pageHeight = getPreviewLayoutPageHeight();
+        var pageHeight = A4_HEIGHT_UNSCALED;
         var footer = document.querySelector('[data-section="footer"]');
         var lastBottom = getLastServiziBottom();
 
@@ -145,7 +134,7 @@ function generaPageBreakScript() {
 
         var totalPages = Math.max(1, Math.ceil(getLayoutBottom(document.body) / pageHeight));
 
-        applyPreviewShift(marginStep);
+        applyPreviewShift();
 
         if ((window.__PREVIEW_PAGE_INDEX || 0) === 0) {
           postPreviewMessage(totalPages);
