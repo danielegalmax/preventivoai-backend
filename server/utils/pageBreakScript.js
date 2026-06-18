@@ -9,8 +9,13 @@ function generaPageBreakScript() {
       var RUNNING_FOOTER_SIDE = 48;
       var paginationDone = false;
 
+      function getScaleRoot() {
+        return document.getElementById('preventivo-preview-scale-root') || document.body;
+      }
+
       function getBodyScale() {
-        var t = window.getComputedStyle(document.body).transform;
+        var el = getScaleRoot();
+        var t = window.getComputedStyle(el).transform;
         if (!t || t === 'none') return 1;
         var m = t.match(/matrix\\(([^)]+)\\)/);
         if (m) {
@@ -22,12 +27,20 @@ function generaPageBreakScript() {
 
       function getLayoutTop(el) {
         var scale = getBodyScale();
-        return (el.getBoundingClientRect().top + window.scrollY) / scale;
+        var root = getScaleRoot();
+        var rootTop = root.getBoundingClientRect().top + window.scrollY;
+        return (el.getBoundingClientRect().top + window.scrollY - rootTop) / scale;
       }
 
       function getLayoutBottom(el) {
         var scale = getBodyScale();
-        return (el.getBoundingClientRect().bottom + window.scrollY) / scale;
+        var root = getScaleRoot();
+        var rootTop = root.getBoundingClientRect().top + window.scrollY;
+        return (el.getBoundingClientRect().bottom + window.scrollY - rootTop) / scale;
+      }
+
+      function getDocumentLayoutBottom() {
+        return getLayoutBottom(getScaleRoot());
       }
 
       function clearLayoutAdjustments() {
@@ -97,12 +110,14 @@ function generaPageBreakScript() {
       function applyPreviewShift() {
         var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
         if (pageIndex > 0) {
-          document.body.style.marginTop = '-' + (pageIndex * A4_HEIGHT_UNSCALED) + 'px';
+          var scale = getBodyScale();
+          var visualStep = Math.round(A4_HEIGHT_UNSCALED * scale);
+          getScaleRoot().style.marginTop = '-' + (pageIndex * visualStep) + 'px';
         }
       }
 
       function countTotalPages(pageHeight) {
-        var bottom = getLayoutBottom(document.body);
+        var bottom = getDocumentLayoutBottom();
         var pages = Math.max(1, Math.ceil(bottom / pageHeight));
         if (pages > 1) {
           var remainder = bottom - (pages - 1) * pageHeight;
@@ -111,24 +126,35 @@ function generaPageBreakScript() {
         return pages;
       }
 
-      function createRunningFooterClone(template, pageIndex, totalPages) {
+      function createRunningFooterClone(template, pageIndex, totalPages, isPreview) {
         var clone = template.cloneNode(true);
         clone.removeAttribute('data-page-footer-template');
         clone.setAttribute('data-running-footer-clone', 'true');
         clone.style.display = 'flex';
-        clone.style.position = 'absolute';
-        clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
-        clone.style.left = RUNNING_FOOTER_SIDE + 'px';
-        clone.style.right = RUNNING_FOOTER_SIDE + 'px';
-        clone.style.width = 'auto';
         clone.style.margin = '0';
         clone.style.zIndex = '20';
         clone.style.pointerEvents = 'none';
+        clone.style.width = 'auto';
 
         var current = clone.querySelector('[data-page-current]');
         var total = clone.querySelector('[data-page-total]');
         if (current) current.textContent = String(pageIndex + 1);
         if (total) total.textContent = String(totalPages);
+
+        if (isPreview) {
+          var scale = getBodyScale();
+          var side = Math.round(RUNNING_FOOTER_SIDE * scale);
+          clone.style.position = 'fixed';
+          clone.style.top = 'auto';
+          clone.style.bottom = Math.max(4, Math.round(RUNNING_FOOTER_BOTTOM_GAP * scale)) + 'px';
+          clone.style.left = side + 'px';
+          clone.style.right = side + 'px';
+        } else {
+          clone.style.position = 'absolute';
+          clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
+          clone.style.left = RUNNING_FOOTER_SIDE + 'px';
+          clone.style.right = RUNNING_FOOTER_SIDE + 'px';
+        }
 
         return clone;
       }
@@ -138,6 +164,7 @@ function generaPageBreakScript() {
         if (!template) return;
 
         var isPreview = '__PREVIEW_PAGE_INDEX' in window;
+        var useFixedFooter = isPreview && !!document.getElementById('preventivo-preview-scale-root');
         var start = isPreview ? (window.__PREVIEW_PAGE_INDEX || 0) : 0;
         var end = isPreview ? start + 1 : totalPages;
 
@@ -146,7 +173,7 @@ function generaPageBreakScript() {
         }
 
         for (var i = start; i < end; i++) {
-          document.body.appendChild(createRunningFooterClone(template, i, totalPages));
+          document.body.appendChild(createRunningFooterClone(template, i, totalPages, useFixedFooter));
         }
 
         template.remove();
@@ -182,7 +209,7 @@ function generaPageBreakScript() {
           var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
           var usedOnPage = lastBottom - pageStart;
           var spaceLeft = pageHeight - PAGE_BOTTOM_MARGIN - usedOnPage;
-          var docBottomPre = getLayoutBottom(document.body);
+          var docBottomPre = getDocumentLayoutBottom();
 
           if (docBottomPre > pageHeight && footerHeight > spaceLeft) {
             var targetTop = pageStart + pageHeight + PAGE_TOP_PADDING;
