@@ -85,7 +85,7 @@ function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrim
   }
 
   function stilePageFooterTemplate(tmpl, coloreHex) {
-    const base = 'display:flex;justify-content:space-between;align-items:center;width:100%;box-sizing:border-box;padding:6px 0;'
+    const base = 'justify-content:space-between;align-items:center;width:100%;box-sizing:border-box;padding:6px 0;'
     const map = {
       pulito: `${base}font-size:11px;color:#aaa;border-top:1px solid #eee;`,
       classico: `${base}font-size:11px;color:#999;font-style:italic;border-top:1px solid #ddd;`,

@@ -140,6 +140,8 @@ function generaPageBreakScript() {
 
           document.body.appendChild(clone);
         }
+
+        template.remove();
       }
 
       function postPreviewMessage(totalPages) {
