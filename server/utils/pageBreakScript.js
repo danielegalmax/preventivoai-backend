@@ -43,6 +43,21 @@ function generaPageBreakScript() {
         return getLayoutBottom(getScaleRoot());
       }
 
+      function isPaginatedPreview() {
+        return '__PREVIEW_PAGE_INDEX' in window;
+      }
+
+      function getPageBottomMargin() {
+        if (isPaginatedPreview()) {
+          return RUNNING_FOOTER_HEIGHT + RUNNING_FOOTER_BOTTOM_GAP + 20;
+        }
+        return PAGE_BOTTOM_MARGIN;
+      }
+
+      function getFooterMount() {
+        return isPaginatedPreview() ? getScaleRoot() : document.body;
+      }
+
       function clearLayoutAdjustments() {
         document.querySelectorAll('[data-page-spacer]').forEach(function (spacer) {
           spacer.remove();
@@ -83,7 +98,7 @@ function generaPageBreakScript() {
           var top = getLayoutTop(row);
           var bottom = getLayoutBottom(row);
           var pageStart = Math.floor(top / pageHeight) * pageHeight;
-          var limit = pageStart + pageHeight - PAGE_BOTTOM_MARGIN;
+          var limit = pageStart + pageHeight - getPageBottomMargin();
           if (bottom > limit) {
             var pushed = injectSpacerBefore(row, pageStart + pageHeight + PAGE_TOP_PADDING);
             if (pushed) row.setAttribute('data-page-start', 'true');
@@ -126,35 +141,35 @@ function generaPageBreakScript() {
         return pages;
       }
 
-      function createRunningFooterClone(template, pageIndex, totalPages, isPreview) {
+      function getFooterSideInset() {
+        if (!isPaginatedPreview()) return RUNNING_FOOTER_SIDE;
+        var root = getScaleRoot();
+        if (root.id === 'preventivo-preview-scale-root') {
+          var pad = parseFloat(window.getComputedStyle(root).paddingLeft) || 0;
+          if (pad >= 40) return 0;
+        }
+        return RUNNING_FOOTER_SIDE;
+      }
+
+      function createRunningFooterClone(template, pageIndex, totalPages) {
         var clone = template.cloneNode(true);
         clone.removeAttribute('data-page-footer-template');
         clone.setAttribute('data-running-footer-clone', 'true');
+        var side = getFooterSideInset();
         clone.style.display = 'flex';
+        clone.style.position = 'absolute';
+        clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
+        clone.style.left = side + 'px';
+        clone.style.right = side + 'px';
+        clone.style.width = 'auto';
         clone.style.margin = '0';
         clone.style.zIndex = '20';
         clone.style.pointerEvents = 'none';
-        clone.style.width = 'auto';
 
         var current = clone.querySelector('[data-page-current]');
         var total = clone.querySelector('[data-page-total]');
         if (current) current.textContent = String(pageIndex + 1);
         if (total) total.textContent = String(totalPages);
-
-        if (isPreview) {
-          var scale = getBodyScale();
-          var side = Math.round(RUNNING_FOOTER_SIDE * scale);
-          clone.style.position = 'fixed';
-          clone.style.top = 'auto';
-          clone.style.bottom = Math.max(4, Math.round(RUNNING_FOOTER_BOTTOM_GAP * scale)) + 'px';
-          clone.style.left = side + 'px';
-          clone.style.right = side + 'px';
-        } else {
-          clone.style.position = 'absolute';
-          clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
-          clone.style.left = RUNNING_FOOTER_SIDE + 'px';
-          clone.style.right = RUNNING_FOOTER_SIDE + 'px';
-        }
 
         return clone;
       }
@@ -163,17 +178,18 @@ function generaPageBreakScript() {
         var template = document.querySelector('[data-page-footer-template]');
         if (!template) return;
 
-        var isPreview = '__PREVIEW_PAGE_INDEX' in window;
-        var useFixedFooter = isPreview && !!document.getElementById('preventivo-preview-scale-root');
-        var start = isPreview ? (window.__PREVIEW_PAGE_INDEX || 0) : 0;
-        var end = isPreview ? start + 1 : totalPages;
+        var mount = getFooterMount();
 
-        if (!isPreview) {
+        if (!isPaginatedPreview()) {
           document.body.style.minHeight = (totalPages * A4_HEIGHT_UNSCALED) + 'px';
-        }
-
-        for (var i = start; i < end; i++) {
-          document.body.appendChild(createRunningFooterClone(template, i, totalPages, useFixedFooter));
+          for (var i = 0; i < totalPages; i++) {
+            mount.appendChild(createRunningFooterClone(template, i, totalPages));
+          }
+        } else {
+          var previewIndex = window.__PREVIEW_PAGE_INDEX || 0;
+          if (previewIndex < totalPages) {
+            mount.appendChild(createRunningFooterClone(template, previewIndex, totalPages));
+          }
         }
 
         template.remove();
@@ -208,7 +224,7 @@ function generaPageBreakScript() {
           var footerHeight = getLayoutBottom(footer) - footerTop;
           var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
           var usedOnPage = lastBottom - pageStart;
-          var spaceLeft = pageHeight - PAGE_BOTTOM_MARGIN - usedOnPage;
+          var spaceLeft = pageHeight - getPageBottomMargin() - usedOnPage;
           var docBottomPre = getDocumentLayoutBottom();
 
           if (docBottomPre > pageHeight && footerHeight > spaceLeft) {
