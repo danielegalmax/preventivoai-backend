@@ -14,8 +14,8 @@ router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, user)
-    res.json({ html, versione, numeroPreventivo })
+    const { html, versione, numeroPreventivo, numeroProvvisorio } = await generaHtmlPreventivo(req, user, { assegnaNumero: false })
+    res.json({ html, versione, numeroPreventivo, numeroProvvisorio })
   } catch (err) {
     sendError(res, err)
   }
@@ -25,10 +25,10 @@ router.post('/api/genera-pdf-file', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
   try {
-    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, user)
+    const { html, versione, numeroPreventivo } = await generaHtmlPreventivo(req, user, { assegnaNumero: true })
     const pdfBuffer = await generaPdfBufferDaHtml(html)
     trackEvento({ userId: user.id, evento: 'pdf_generato', schermata: 'preventivo-pdf', dati: { template: req.body.template, versione } })
-    res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, html })
+    res.json({ pdf_base64: Buffer.from(pdfBuffer).toString('base64'), versione, numeroPreventivo, numeroProvvisorio: false, html })
   } catch (err) {
     sendError(res, err)
   }

@@ -1,7 +1,12 @@
 const { supabase } = require('../config')
 const { generaHTML } = require('./templates')
 
-async function generaHtmlPreventivo(req, user) {
+function formatNumeroPreventivo(contatore, anno = new Date().getFullYear()) {
+  return `PRV-${anno}-${String(contatore).padStart(4, '0')}`
+}
+
+async function generaHtmlPreventivo(req, user, options = {}) {
+  const assegnaNumero = options.assegnaNumero !== false
   const { testo, template, versione_padre_id, cliente_id, nascondi_prezzi, demo_profile, demo_cliente } = req.body
   const { data: profile } = await supabase.from('profiles').select('nome_azienda, citta, piva, telefono, logo_url, colore_brand, template_preferito, note_pagamento, firma_nome, contatore_preventivi').eq('id', user.id).single()
   const colore = profile?.colore_brand || '0D1B2A'
@@ -25,10 +30,18 @@ async function generaHtmlPreventivo(req, user) {
     if (cl) clienteDati = cl
   }
 
-  const nuovoContatore = (profile?.contatore_preventivi || 0) + 1
-  await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
-  const anno = new Date().getFullYear()
-  const numeroPreventivo = `PRV-${anno}-${String(nuovoContatore).padStart(4, '0')}`
+  const contatoreAttuale = profile?.contatore_preventivi || 0
+  let numeroPreventivo
+  let numeroProvvisorio = false
+
+  if (assegnaNumero) {
+    const nuovoContatore = contatoreAttuale + 1
+    await supabase.from('profiles').update({ contatore_preventivi: nuovoContatore }).eq('id', user.id)
+    numeroPreventivo = formatNumeroPreventivo(nuovoContatore)
+  } else {
+    numeroPreventivo = formatNumeroPreventivo(contatoreAttuale + 1)
+    numeroProvvisorio = true
+  }
 
   const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
   if (versione_padre_id) {
@@ -40,7 +53,7 @@ async function generaHtmlPreventivo(req, user) {
     if (padre) versione = (padre.versione || 1) + 1
   }
 
-  return { html, versione, numeroPreventivo }
+  return { html, versione, numeroPreventivo, numeroProvvisorio }
 }
 
 module.exports = { generaHtmlPreventivo }
