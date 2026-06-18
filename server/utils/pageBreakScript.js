@@ -97,9 +97,7 @@ function generaPageBreakScript() {
       function applyPreviewShift() {
         var pageIndex = window.__PREVIEW_PAGE_INDEX || 0;
         if (pageIndex > 0) {
-          var scale = getBodyScale();
-          var visualStep = Math.round(A4_HEIGHT_UNSCALED * scale);
-          document.body.style.marginTop = '-' + (pageIndex * visualStep) + 'px';
+          document.body.style.marginTop = '-' + (pageIndex * A4_HEIGHT_UNSCALED) + 'px';
         }
       }
 
@@ -113,32 +111,42 @@ function generaPageBreakScript() {
         return pages;
       }
 
+      function createRunningFooterClone(template, pageIndex, totalPages) {
+        var clone = template.cloneNode(true);
+        clone.removeAttribute('data-page-footer-template');
+        clone.setAttribute('data-running-footer-clone', 'true');
+        clone.style.display = 'flex';
+        clone.style.position = 'absolute';
+        clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
+        clone.style.left = RUNNING_FOOTER_SIDE + 'px';
+        clone.style.right = RUNNING_FOOTER_SIDE + 'px';
+        clone.style.width = 'auto';
+        clone.style.margin = '0';
+        clone.style.zIndex = '20';
+        clone.style.pointerEvents = 'none';
+
+        var current = clone.querySelector('[data-page-current]');
+        var total = clone.querySelector('[data-page-total]');
+        if (current) current.textContent = String(pageIndex + 1);
+        if (total) total.textContent = String(totalPages);
+
+        return clone;
+      }
+
       function injectRunningFooters(totalPages) {
         var template = document.querySelector('[data-page-footer-template]');
         if (!template) return;
 
-        var pageHeight = A4_HEIGHT_UNSCALED;
+        var isPreview = '__PREVIEW_PAGE_INDEX' in window;
+        var start = isPreview ? (window.__PREVIEW_PAGE_INDEX || 0) : 0;
+        var end = isPreview ? start + 1 : totalPages;
 
-        for (var i = 0; i < totalPages; i++) {
-          var clone = template.cloneNode(true);
-          clone.removeAttribute('data-page-footer-template');
-          clone.setAttribute('data-running-footer-clone', 'true');
-          clone.style.display = 'flex';
-          clone.style.position = 'absolute';
-          clone.style.top = ((i + 1) * pageHeight - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
-          clone.style.left = RUNNING_FOOTER_SIDE + 'px';
-          clone.style.right = RUNNING_FOOTER_SIDE + 'px';
-          clone.style.width = 'auto';
-          clone.style.margin = '0';
-          clone.style.zIndex = '5';
-          clone.style.pointerEvents = 'none';
+        if (!isPreview) {
+          document.body.style.minHeight = (totalPages * A4_HEIGHT_UNSCALED) + 'px';
+        }
 
-          var current = clone.querySelector('[data-page-current]');
-          var total = clone.querySelector('[data-page-total]');
-          if (current) current.textContent = String(i + 1);
-          if (total) total.textContent = String(totalPages);
-
-          document.body.appendChild(clone);
+        for (var i = start; i < end; i++) {
+          document.body.appendChild(createRunningFooterClone(template, i, totalPages));
         }
 
         template.remove();
