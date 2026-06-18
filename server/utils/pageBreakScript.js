@@ -141,28 +141,20 @@ function generaPageBreakScript() {
         return pages;
       }
 
-      function getFooterSideInset() {
-        if (!isPaginatedPreview()) return RUNNING_FOOTER_SIDE;
-        var root = getScaleRoot();
-        if (root.id === 'preventivo-preview-scale-root') {
-          var pad = parseFloat(window.getComputedStyle(root).paddingLeft) || 0;
-          if (pad >= 40) return 0;
-        }
-        return RUNNING_FOOTER_SIDE;
-      }
-
       function createRunningFooterClone(template, pageIndex, totalPages) {
         var clone = template.cloneNode(true);
         clone.removeAttribute('data-page-footer-template');
         clone.setAttribute('data-running-footer-clone', 'true');
-        var side = getFooterSideInset();
         clone.style.display = 'flex';
         clone.style.position = 'absolute';
         clone.style.top = ((pageIndex + 1) * A4_HEIGHT_UNSCALED - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
-        clone.style.left = side + 'px';
-        clone.style.right = side + 'px';
+        clone.style.left = RUNNING_FOOTER_SIDE + 'px';
+        clone.style.right = RUNNING_FOOTER_SIDE + 'px';
         clone.style.width = 'auto';
+        clone.style.maxWidth = 'none';
         clone.style.margin = '0';
+        clone.style.boxSizing = 'border-box';
+        clone.style.overflow = 'hidden';
         clone.style.zIndex = '20';
         clone.style.pointerEvents = 'none';
 
