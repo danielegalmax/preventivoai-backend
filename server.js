@@ -8,6 +8,7 @@ const clientiRoutes = require('./server/routes/clienti')
 const profiloRoutes = require('./server/routes/profilo')
 const varieRoutes = require('./server/routes/varie')
 const accountRoutes = require('./server/routes/account')
+const firmaRoutes = require('./server/routes/firma')
 
 const app = express()
 app.use(cors())
@@ -23,6 +24,7 @@ app.use(clientiRoutes)
 app.use(profiloRoutes)
 app.use(varieRoutes)
 app.use(accountRoutes)
+app.use(firmaRoutes)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
