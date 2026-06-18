@@ -4,6 +4,9 @@ function generaPageBreakScript() {
       var A4_HEIGHT_UNSCALED = 1123;
       var PAGE_BOTTOM_MARGIN = 50;
       var PAGE_TOP_PADDING = 40;
+      var RUNNING_FOOTER_HEIGHT = 30;
+      var RUNNING_FOOTER_BOTTOM_GAP = 10;
+      var RUNNING_FOOTER_SIDE = 48;
       var paginationDone = false;
 
       function getBodyScale() {
@@ -32,6 +35,9 @@ function generaPageBreakScript() {
           spacer.remove();
         });
         document.querySelectorAll('[data-repeated-header]').forEach(function (el) {
+          el.remove();
+        });
+        document.querySelectorAll('[data-running-footer-clone]').forEach(function (el) {
           el.remove();
         });
       }
@@ -97,14 +103,57 @@ function generaPageBreakScript() {
         }
       }
 
+      function countTotalPages(pageHeight) {
+        var bottom = getLayoutBottom(document.body);
+        var pages = Math.max(1, Math.ceil(bottom / pageHeight));
+        if (pages > 1) {
+          var remainder = bottom - (pages - 1) * pageHeight;
+          if (remainder < PAGE_BOTTOM_MARGIN) pages -= 1;
+        }
+        return pages;
+      }
+
+      function injectRunningFooters(totalPages) {
+        var template = document.querySelector('[data-page-footer-template]');
+        if (!template) return;
+
+        var pageHeight = A4_HEIGHT_UNSCALED;
+
+        for (var i = 0; i < totalPages; i++) {
+          var clone = template.cloneNode(true);
+          clone.removeAttribute('data-page-footer-template');
+          clone.setAttribute('data-running-footer-clone', 'true');
+          clone.style.display = 'flex';
+          clone.style.position = 'absolute';
+          clone.style.top = ((i + 1) * pageHeight - RUNNING_FOOTER_HEIGHT - RUNNING_FOOTER_BOTTOM_GAP) + 'px';
+          clone.style.left = RUNNING_FOOTER_SIDE + 'px';
+          clone.style.right = RUNNING_FOOTER_SIDE + 'px';
+          clone.style.width = 'auto';
+          clone.style.margin = '0';
+          clone.style.zIndex = '5';
+          clone.style.pointerEvents = 'none';
+
+          var current = clone.querySelector('[data-page-current]');
+          var total = clone.querySelector('[data-page-total]');
+          if (current) current.textContent = String(i + 1);
+          if (total) total.textContent = String(totalPages);
+
+          document.body.appendChild(clone);
+        }
+      }
+
       function postPreviewMessage(totalPages) {
+        var payload = JSON.stringify({
+          type: 'page-breaks',
+          pageHeightPx: A4_HEIGHT_UNSCALED,
+          totalPages: totalPages,
+          breakPoints: []
+        });
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'page-breaks',
-            pageHeightPx: A4_HEIGHT_UNSCALED,
-            totalPages: totalPages,
-            breakPoints: []
-          }));
+          window.ReactNativeWebView.postMessage(payload);
+        }
+        if (window.parent && window.parent !== window) {
+          try { window.parent.postMessage(payload, '*'); } catch (e) {}
         }
       }
 
@@ -131,7 +180,8 @@ function generaPageBreakScript() {
           }
         }
 
-        var totalPages = Math.max(1, Math.ceil(getLayoutBottom(document.body) / pageHeight));
+        var totalPages = countTotalPages(pageHeight);
+        injectRunningFooters(totalPages);
 
         applyPreviewShift();
 

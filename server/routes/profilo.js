@@ -6,6 +6,7 @@ const { trackAI, trackEvento } = require('../utils/analytics')
 const { salvaLogoProfilo } = require('../utils/logoStorage')
 const { creaMessaggioClaude } = require('../utils/aiClient')
 const { caricaProfilo } = require('../utils/profiloData')
+const { parseJsonArrayFromAI } = require('../utils/parseJsonArray')
 
 router.get('/api/profilo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -39,7 +40,26 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
     const { testo, immagine_base64, mime_type } = req.body
     if (!testo && !immagine_base64) return res.status(400).json({ error: 'Testo o immagine mancante' })
 
-    const prompt = `Analizza questo listino prezzi e restituisci un array JSON di servizi strutturati.\n\nRispondi SOLO con un array JSON valido, niente altro. Formato:\n[\n  {\n    "nome": "Nome servizio",\n    "descrizione": "Breve descrizione opzionale",\n    "costo": 300,\n    "unita": "cad"\n  }\n]\n\nPer unita usa: cad, ora, giorno, mq, ml, set, progetto\nSe il costo non è specificato, metti null.\nSe la descrizione non è chiara, metti stringa vuota.`
+    const prompt = `Analizza questo listino prezzi e restituisci un array JSON di servizi strutturati.
+
+Il listino può essere tabella (colonne separate da tab), elenco o testo libero.
+Per fasce di prezzo (es. 60–100 €, 500–1.200 €) usa il valore medio arrotondato come costo numerico.
+Mappa le unità così: Orario/ora -> "ora", Progetto -> "progetto", Giorno/giornata -> "giorno", altrimenti "cad".
+Includi TUTTI i servizi presenti nel listino.
+
+Rispondi SOLO con un array JSON valido, niente altro. Formato:
+[
+  {
+    "nome": "Nome servizio",
+    "descrizione": "Breve descrizione opzionale",
+    "costo": 300,
+    "unita": "cad"
+  }
+]
+
+Per unita usa: cad, ora, giorno, mq, ml, set, progetto
+Se il costo non è specificato, metti null.
+Se la descrizione non è chiara, metti stringa vuota.`
 
     const content = immagine_base64
       ? [
@@ -49,7 +69,7 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
       : `${prompt}\n\nListino:\n${testo}`
 
     const { response, latenzaMs } = await creaMessaggioClaude({
-      max_tokens: 1000,
+      max_tokens: 4096,
       messages: [{ role: 'user', content }]
     })
     
@@ -61,8 +81,8 @@ router.post('/api/elabora-servizi', express.json(), async (req, res) => {
       latenzaMs
     })
     trackEvento({ userId: user.id, evento: 'listino_smart', schermata: 'settings', dati: { tipo: immagine_base64 ? 'foto' : 'testo' } })
-    const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim()
-    res.json({ servizi: JSON.parse(clean) })
+    const servizi = parseJsonArrayFromAI(response.content[0].text)
+    res.json({ servizi })
   } catch (err) {
     sendError(res, err)
   }
