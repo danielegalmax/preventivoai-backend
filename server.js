@@ -21,11 +21,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// TEMP: test integrazione Sentry — rimuovere dopo verifica manuale
-app.get('/api/test-sentry-temp', () => {
-  throw new Error('Test Sentry - errore di prova, da rimuovere')
-})
-
 app.use(chatRoutes)
 app.use(pdfRoutes)
 app.use(clientiRoutes)
