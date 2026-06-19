@@ -10,6 +10,7 @@ const {
   datiPaginaFirma,
   accettaFirma,
   registraFirmaManuale,
+  annullaFirmaOnline,
   caricaPreventivoPerFirma,
 } = require('../utils/firmaData')
 
@@ -77,6 +78,18 @@ router.post('/api/preventivi/:id/firma-manuale', express.json({ limit: '10mb' })
       documentoBase64: documento_base64,
       mimeType: mime_type,
     })
+    res.json(result)
+  } catch (err) {
+    sendError(res, err)
+  }
+})
+
+router.post('/api/preventivi/:id/annulla-firma', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const { id } = req.params
+    const result = await annullaFirmaOnline(id, user.id)
     res.json(result)
   } catch (err) {
     sendError(res, err)

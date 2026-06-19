@@ -315,6 +315,88 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
   }
 }
 
+async function generaPdfOriginale(preventivo, profile) {
+  const html = await htmlPreventivoDaRecord(preventivo, profile)
+  const pdfBuffer = await generaPdfBufferDaHtml(html)
+  const path = `${preventivo.user_id}/originale/${preventivo.id}-${Date.now()}.pdf`
+  const { error } = await supabase.storage
+    .from('preventivi-pdf')
+    .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: false })
+  if (error) throw new Error(error.message)
+  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
+  return urlData.publicUrl
+}
+
+async function invioFirmatoOnline(preventivoId) {
+  const { data: rows, error } = await supabase
+    .from('preventivo_invii')
+    .select('*')
+    .eq('preventivo_id', preventivoId)
+    .not('firmato_at', 'is', null)
+    .order('firmato_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (rows || []).find((invio) => {
+    if (invio.metodo_firma === 'manuale' || invio.canale === 'manuale') return false
+    if (invio.metodo_firma === 'online') return true
+    return invio.metodo_firma == null && !!invio.firma_immagine_url
+  }) || null
+}
+
+async function annullaFirmaOnline(preventivoId, userId) {
+  const preventivo = await caricaPreventivoPerFirma(preventivoId, userId)
+  const invio = await invioFirmatoOnline(preventivoId)
+  if (!invio) throw new Error('Nessuna firma online da annullare')
+
+  const profile = await caricaProfiloPerPreventivo(userId)
+  const pdfUrlOriginale = invio.audit_json?.pdf_url_pre_firma || await generaPdfOriginale(preventivo, profile)
+  const annullatoAt = new Date().toISOString()
+  const storico = Array.isArray(invio.audit_json?.storico_firme) ? invio.audit_json.storico_firme : []
+
+  storico.push({
+    firmato_at: invio.firmato_at,
+    firma_immagine_url: invio.firma_immagine_url,
+    pdf_firmato_url: invio.pdf_firmato_url,
+    annullato_at: annullatoAt,
+  })
+
+  await supabase
+    .from('preventivo_invii')
+    .update({
+      firmato_at: null,
+      metodo_firma: null,
+      firma_immagine_url: null,
+      pdf_firmato_url: null,
+      audit_json: {
+        ...(invio.audit_json || {}),
+        storico_firme: storico,
+        ultimo_annullamento_at: annullatoAt,
+        pdf_url_pre_firma: pdfUrlOriginale,
+      },
+    })
+    .eq('id', invio.id)
+
+  await supabase
+    .from('preventivi')
+    .update({ stato: 'inviato', pdf_url: pdfUrlOriginale })
+    .eq('id', preventivoId)
+    .eq('user_id', userId)
+
+  await supabase.from('preventivo_invii_eventi').insert({
+    invio_id: invio.id,
+    tipo: 'firma_annullata',
+  })
+
+  const linkAttivo = !invio.revocato_at && new Date(invio.scade_at) > new Date()
+
+  return {
+    ok: true,
+    invio_id: invio.id,
+    link_attivo: linkAttivo,
+    url: invio.link_token ? urlFirma(invio.link_token) : null,
+    scade_at: invio.scade_at,
+  }
+}
+
 async function salvaImmagineFirma(userId, invioId, firmaBase64) {
   const base64 = firmaBase64.replace(/^data:image\/\w+;base64,/, '')
   const buffer = Buffer.from(base64, 'base64')
@@ -388,6 +470,7 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
       audit_json: {
         ...audit,
         metodo: 'online',
+        pdf_url_pre_firma: preventivo.pdf_url || null,
         accettato_checkbox: true,
         firmato_at: firmatoAt,
       },
@@ -461,6 +544,7 @@ module.exports = {
   datiPaginaFirma,
   accettaFirma,
   registraFirmaManuale,
+  annullaFirmaOnline,
   caricaPreventivoPerFirma,
   creaNotifica,
   hashToken,
