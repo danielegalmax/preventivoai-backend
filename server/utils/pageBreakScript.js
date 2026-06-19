@@ -7,6 +7,7 @@ function generaPageBreakScript() {
       var RUNNING_FOOTER_HEIGHT = 30;
       var RUNNING_FOOTER_BOTTOM_GAP = 10;
       var RUNNING_FOOTER_SIDE = 48;
+      var FIRMA_CLIENTE_RESERVE_PX = 148;
       var paginationDone = false;
 
       function getScaleRoot() {
@@ -202,6 +203,20 @@ function generaPageBreakScript() {
         }
       }
 
+      function getClosingBlockHeight(footer) {
+        var footerTop = getLayoutTop(footer);
+        var firma = document.querySelector('[data-section="firma-cliente"]');
+        var closingBottom;
+        if (firma) {
+          closingBottom = getLayoutBottom(firma);
+        } else {
+          var footerBottom = getLayoutBottom(footer);
+          var reserve = document.body.getAttribute('data-firma-pdf') === 'true' ? FIRMA_CLIENTE_RESERVE_PX : 0;
+          closingBottom = footerBottom + reserve;
+        }
+        return closingBottom - footerTop;
+      }
+
       function calcolaPagination() {
         clearLayoutAdjustments();
         pushOverflowingRows();
@@ -212,14 +227,13 @@ function generaPageBreakScript() {
         var lastBottom = getLastServiziBottom();
 
         if (footer && lastBottom > 0) {
-          var footerTop = getLayoutTop(footer);
-          var footerHeight = getLayoutBottom(footer) - footerTop;
+          var closingHeight = getClosingBlockHeight(footer);
           var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
           var usedOnPage = lastBottom - pageStart;
           var spaceLeft = pageHeight - getPageBottomMargin() - usedOnPage;
           var docBottomPre = getDocumentLayoutBottom();
 
-          if (docBottomPre > pageHeight && footerHeight > spaceLeft) {
+          if (docBottomPre > pageHeight && closingHeight > spaceLeft) {
             var targetTop = pageStart + pageHeight + PAGE_TOP_PADDING;
             injectSpacerBefore(footer, targetTop);
           }

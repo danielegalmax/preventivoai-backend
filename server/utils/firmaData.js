@@ -15,7 +15,7 @@ function generaToken() {
 }
 
 function baseUrlFirma() {
-  return (process.env.FIRMA_WEB_BASE_URL || 'https://app.preventivoai.it').replace(/\/$/, '')
+  return (process.env.FIRMA_WEB_BASE_URL || 'https://preventivoai-web.vercel.app').replace(/\/$/, '')
 }
 
 function urlFirma(token) {
@@ -132,15 +132,51 @@ async function htmlPreventivoDaRecord(preventivo, profile) {
   })
 }
 
-function bloccoFirmaCliente(firmaUrl, nomeCliente) {
-  const data = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
+/** Altezza riserva spazio fantasma per paginazione blocco 2 (px layout A4). */
+const FIRMA_CLIENTE_RESERVE_PX = 148
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function formattaDataFirma(firmatoAt) {
+  const d = firmatoAt ? new Date(firmatoAt) : new Date()
+  return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
+function bloccoFirmaCliente(firmaUrl, nomeCliente, firmatoAt) {
+  const data = formattaDataFirma(firmatoAt)
+  const nome = escapeHtml(nomeCliente || 'Cliente')
   return `
-    <div data-section="firma-cliente" style="margin-top:32px;padding-top:24px;border-top:2px solid #e5e7eb;">
-      <p style="font-size:12px;color:#666;margin-bottom:8px;">Accettazione cliente</p>
-      <p style="font-size:13px;margin-bottom:12px;"><strong>${nomeCliente || 'Cliente'}</strong> — ${data}</p>
-      <img src="${firmaUrl}" alt="Firma cliente" style="max-height:80px;max-width:280px;display:block;" />
+    <div data-section="firma-cliente" style="margin-top:18px;max-width:260px;text-align:left;min-height:${FIRMA_CLIENTE_RESERVE_PX}px;">
+      <div style="font-size:10px;font-weight:600;color:#6B7280;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:3px;">Data e firma del cliente</div>
+      <div style="font-size:11px;color:#374151;margin-bottom:6px;">${escapeHtml(data)}</div>
+      <img src="${firmaUrl}" alt="Firma ${nome}" style="display:block;height:48px;max-width:220px;object-fit:contain;object-position:left bottom;margin-bottom:5px;" />
+      <div style="border-bottom:1px solid #374151;width:210px;"></div>
     </div>
   `
+}
+
+/** Inserisce il box firma nel flusso del macro blocco 2 (dopo footer, prima del page-footer). */
+function inserisciBloccoFirmaInHtml(html, bloccoFirma) {
+  const flagBody = html.includes('<body ')
+    ? html.replace('<body ', '<body data-firma-pdf="true" ')
+    : html.replace('<body>', '<body data-firma-pdf="true">')
+
+  const anchor = 'data-page-footer-template'
+  const pos = flagBody.indexOf(anchor)
+  if (pos === -1) {
+    return flagBody.replace('</body>', `${bloccoFirma}</body>`)
+  }
+  const insertAt = flagBody.lastIndexOf('<div', pos)
+  if (insertAt === -1) {
+    return flagBody.replace('</body>', `${bloccoFirma}</body>`)
+  }
+  return flagBody.slice(0, insertAt) + bloccoFirma + flagBody.slice(insertAt)
 }
 
 async function salvaImmagineFirma(userId, invioId, firmaBase64) {
@@ -155,9 +191,9 @@ async function salvaImmagineFirma(userId, invioId, firmaBase64) {
   return urlData.publicUrl
 }
 
-async function generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente) {
+async function generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente, firmatoAt) {
   let html = await htmlPreventivoDaRecord(preventivo, profile)
-  html = html.replace('</body>', `${bloccoFirmaCliente(firmaUrl, nomeCliente)}</body>`)
+  html = inserisciBloccoFirmaInHtml(html, bloccoFirmaCliente(firmaUrl, nomeCliente, firmatoAt))
   const pdfBuffer = await generaPdfBufferDaHtml(html)
   const path = `${preventivo.user_id}/firmati/${preventivo.id}-${Date.now()}.pdf`
   const { error } = await supabase.storage
@@ -202,9 +238,9 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
   const profile = await caricaProfiloPerPreventivo(invio.user_id)
   const nomeCliente = preventivo.clienti?.nome || preventivo.nome_cliente || 'Cliente'
 
-  const firmaUrl = await salvaImmagineFirma(invio.user_id, invio.id, firmaBase64)
-  const pdfFirmatoUrl = await generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente)
   const firmatoAt = new Date().toISOString()
+  const firmaUrl = await salvaImmagineFirma(invio.user_id, invio.id, firmaBase64)
+  const pdfFirmatoUrl = await generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente, firmatoAt)
 
   await supabase
     .from('preventivo_invii')
