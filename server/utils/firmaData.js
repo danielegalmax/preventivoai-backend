@@ -179,6 +179,142 @@ function inserisciBloccoFirmaInHtml(html, bloccoFirma) {
   return flagBody.slice(0, insertAt) + bloccoFirma + flagBody.slice(insertAt)
 }
 
+async function invioPendente(preventivoId) {
+  const { data } = await supabase
+    .from('preventivo_invii')
+    .select('*')
+    .eq('preventivo_id', preventivoId)
+    .is('firmato_at', null)
+    .order('inviato_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data
+}
+
+async function giaFirmato(preventivoId) {
+  const { data } = await supabase
+    .from('preventivo_invii')
+    .select('id')
+    .eq('preventivo_id', preventivoId)
+    .not('firmato_at', 'is', null)
+    .limit(1)
+    .maybeSingle()
+  return !!data
+}
+
+async function salvaDocumentoFirmaManuale(userId, preventivoId, invioId, documentoBase64, mimeType) {
+  const raw = documentoBase64.replace(/^data:[^;]+;base64,/, '')
+  const buffer = Buffer.from(raw, 'base64')
+  const isPdf = mimeType === 'application/pdf' || mimeType?.includes('pdf')
+  const ext = isPdf ? 'pdf' : mimeType?.includes('png') ? 'png' : 'jpg'
+  const contentType = isPdf ? 'application/pdf' : mimeType?.includes('png') ? 'image/png' : 'image/jpeg'
+  const path = `${userId}/firmati-manuali/${preventivoId}-${invioId}-${Date.now()}.${ext}`
+  const { error } = await supabase.storage
+    .from('preventivi-pdf')
+    .upload(path, buffer, { contentType, upsert: false })
+  if (error) throw new Error(error.message)
+  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
+  return { url: urlData.publicUrl, tipo: isPdf ? 'pdf' : 'immagine' }
+}
+
+async function creaInvioManuale(preventivoId, userId) {
+  const { token, tokenHash } = generaToken()
+  const scadeAt = new Date()
+  scadeAt.setDate(scadeAt.getDate() + GIORNI_SCADENZA)
+  const { data: invio, error } = await supabase
+    .from('preventivo_invii')
+    .insert({
+      preventivo_id: preventivoId,
+      user_id: userId,
+      token_hash: tokenHash,
+      link_token: token,
+      canale: 'manuale',
+      scade_at: scadeAt.toISOString(),
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return invio
+}
+
+async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mimeType } = {}) {
+  const preventivo = await caricaPreventivoPerFirma(preventivoId, userId)
+  if (await giaFirmato(preventivoId)) {
+    throw new Error('Preventivo già firmato')
+  }
+
+  let invio = await invioAttivo(preventivoId)
+  if (!invio) invio = await invioPendente(preventivoId)
+  if (!invio) invio = await creaInvioManuale(preventivoId, userId)
+
+  const firmatoAt = new Date().toISOString()
+  let firmaImmagineUrl = null
+  let pdfFirmatoUrl = null
+
+  if (documentoBase64) {
+    const saved = await salvaDocumentoFirmaManuale(
+      userId,
+      preventivoId,
+      invio.id,
+      documentoBase64,
+      mimeType || 'application/octet-stream',
+    )
+    if (saved.tipo === 'pdf') pdfFirmatoUrl = saved.url
+    else firmaImmagineUrl = saved.url
+  }
+
+  const audit = {
+    metodo: 'manuale',
+    firmato_at: firmatoAt,
+    mime_type: mimeType || null,
+    documento_caricato: !!documentoBase64,
+  }
+
+  await supabase
+    .from('preventivo_invii')
+    .update({
+      firmato_at: firmatoAt,
+      metodo_firma: 'manuale',
+      canale: invio.canale === 'manuale' || !invio.canale ? 'manuale' : invio.canale,
+      firma_immagine_url: firmaImmagineUrl,
+      pdf_firmato_url: pdfFirmatoUrl,
+      audit_json: { ...(invio.audit_json || {}), ...audit },
+      reminder_disabilitato: true,
+    })
+    .eq('id', invio.id)
+
+  const updatePreventivo = { stato: 'accettato' }
+  if (pdfFirmatoUrl) updatePreventivo.pdf_url = pdfFirmatoUrl
+  await supabase.from('preventivi').update(updatePreventivo).eq('id', preventivoId).eq('user_id', userId)
+
+  await supabase.from('preventivo_invii_eventi').insert({
+    invio_id: invio.id,
+    tipo: 'firma_manuale',
+  })
+
+  const nomeCliente = preventivo.clienti?.nome || preventivo.nome_cliente || 'Cliente'
+  await creaNotifica({
+    userId,
+    tipo: 'firma_ricevuta',
+    preventivoId,
+    invioId: invio.id,
+    titolo: 'Preventivo firmato a mano',
+    messaggio: documentoBase64
+      ? `${nomeCliente}: documento firmato caricato. Quando vuoi, segnalo come pagato?`
+      : `${nomeCliente}: preventivo segnato come firmato a mano. Quando vuoi, segnalo come pagato?`,
+    payload: { nomeCliente, pdfFirmatoUrl, firmaImmagineUrl, chiediPagato: true, metodo: 'manuale' },
+  })
+
+  return {
+    ok: true,
+    invio_id: invio.id,
+    firmato_at: firmatoAt,
+    pdf_firmato_url: pdfFirmatoUrl,
+    firma_immagine_url: firmaImmagineUrl,
+    metodo_firma: 'manuale',
+  }
+}
+
 async function salvaImmagineFirma(userId, invioId, firmaBase64) {
   const base64 = firmaBase64.replace(/^data:image\/\w+;base64,/, '')
   const buffer = Buffer.from(base64, 'base64')
@@ -246,10 +382,12 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
     .from('preventivo_invii')
     .update({
       firmato_at: firmatoAt,
+      metodo_firma: 'online',
       firma_immagine_url: firmaUrl,
       pdf_firmato_url: pdfFirmatoUrl,
       audit_json: {
         ...audit,
+        metodo: 'online',
         accettato_checkbox: true,
         firmato_at: firmatoAt,
       },
@@ -322,6 +460,7 @@ module.exports = {
   invioAttivo,
   datiPaginaFirma,
   accettaFirma,
+  registraFirmaManuale,
   caricaPreventivoPerFirma,
   creaNotifica,
   hashToken,

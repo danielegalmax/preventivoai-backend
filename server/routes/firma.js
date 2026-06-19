@@ -9,6 +9,7 @@ const {
   invioAttivo,
   datiPaginaFirma,
   accettaFirma,
+  registraFirmaManuale,
   caricaPreventivoPerFirma,
 } = require('../utils/firmaData')
 
@@ -61,6 +62,22 @@ router.post('/api/preventivi/:id/revoca-firma', express.json(), async (req, res)
       .eq('id', attivo.id)
     if (error) throw new Error(error.message)
     res.json({ ok: true })
+  } catch (err) {
+    sendError(res, err)
+  }
+})
+
+router.post('/api/preventivi/:id/firma-manuale', express.json({ limit: '10mb' }), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const { id } = req.params
+    const { documento_base64, mime_type } = req.body
+    const result = await registraFirmaManuale(id, user.id, {
+      documentoBase64: documento_base64,
+      mimeType: mime_type,
+    })
+    res.json(result)
   } catch (err) {
     sendError(res, err)
   }
