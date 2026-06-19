@@ -1,6 +1,7 @@
 ﻿const express = require('express')
 const router = express.Router()
 const verificaUtente = require('../middleware/auth')
+const { applicaLimiteAi } = require('../middleware/aiRateLimit')
 const { trackAI, trackEvento } = require('../utils/analytics')
 const { sendError } = require('../utils/http')
 const { creaMessaggioClaude } = require('../utils/aiClient')
@@ -9,6 +10,7 @@ const { caricaClienteChat, caricaProfiloChat, caricaProfiloConvertiRecap, carica
 router.post('/api/chat', async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
+  if (!applicaLimiteAi(user.id, '/api/chat', res)) return
 
   const { messages, cliente_id } = req.body
   if (!messages || !Array.isArray(messages)) {
@@ -164,6 +166,7 @@ REGOLE:
 router.post('/api/converti-recap', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
+  if (!applicaLimiteAi(user.id, '/api/converti-recap', res)) return
   try {
     const { recap } = req.body
     const profile = await caricaProfiloConvertiRecap(user.id)

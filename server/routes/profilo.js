@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const verificaUtente = require('../middleware/auth')
+const { applicaLimiteAi } = require('../middleware/aiRateLimit')
 const { asyncRoute, sendError } = require('../utils/http')
 const { trackAI, trackEvento } = require('../utils/analytics')
 const { salvaLogoProfilo } = require('../utils/logoStorage')
@@ -36,6 +37,7 @@ router.post('/api/upload-logo', express.json(), async (req, res) => {
 router.post('/api/elabora-servizi', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
+  if (!applicaLimiteAi(user.id, '/api/elabora-servizi', res)) return
   try {
     const { testo, immagine_base64, mime_type } = req.body
     if (!testo && !immagine_base64) return res.status(400).json({ error: 'Testo o immagine mancante' })

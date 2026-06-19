@@ -12,6 +12,7 @@ const {
   registraFirmaManuale,
   annullaFirmaOnline,
   caricaPreventivoPerFirma,
+  urlInvioFirmaArtigiano,
 } = require('../utils/firmaData')
 
 router.post('/api/preventivi/:id/invia-firma', express.json(), async (req, res) => {
@@ -92,6 +93,24 @@ router.post('/api/preventivi/:id/annulla-firma', express.json(), async (req, res
     const result = await annullaFirmaOnline(id, user.id)
     res.json(result)
   } catch (err) {
+    sendError(res, err)
+  }
+})
+
+router.get('/api/preventivi/:id/invio-firma-url', async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  try {
+    const data = await urlInvioFirmaArtigiano(req.params.id, user.id)
+    res.json(data)
+  } catch (err) {
+    if (err.message === 'Preventivo non trovato') {
+      return res.status(404).json({ error: err.message })
+    }
+    if (err.message === 'Nessun invio firma trovato') {
+      return res.status(404).json({ error: err.message })
+    }
     sendError(res, err)
   }
 })

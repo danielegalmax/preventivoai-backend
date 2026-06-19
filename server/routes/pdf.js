@@ -2,11 +2,16 @@ const express = require('express')
 const router = express.Router()
 const verificaUtente = require('../middleware/auth')
 const { sendError } = require('../utils/http')
+const { supabase } = require('../config')
 const { generaHtmlPreventivo } = require('../utils/preventivoHtml')
 const { salvaPdfSuStorage } = require('../utils/pdfStorage')
 const { generaPdfBufferDaHtml } = require('../utils/pdfRenderer')
 const { caricaRataAbbonamento, creaSessionePagamento, getStripeClient } = require('../utils/stripePayments')
 const { trackEvento } = require('../utils/analytics')
+const {
+  SIGNED_URL_EXPIRY_ARTIGIANO_SEC,
+  signedUrlArtigianoPdfReference,
+} = require('../utils/pdfSignedUrls')
 
 const stripe = getStripeClient()
 
@@ -41,9 +46,45 @@ router.post('/api/salva-pdf', express.json(), async (req, res) => {
   try {
     const { pdf_base64 } = req.body
     if (!pdf_base64) return res.status(400).json({ error: 'PDF mancante' })
-    const { pdfUrl, error } = await salvaPdfSuStorage(user.id, pdf_base64)
+    const { pdfUrl, storagePath, error } = await salvaPdfSuStorage(user.id, pdf_base64)
     if (error) return res.status(500).json({ error: error.message })
-    res.json({ pdf_url: pdfUrl })
+    res.json({
+      pdf_url: pdfUrl,
+      storage_path: storagePath,
+      expires_in: SIGNED_URL_EXPIRY_ARTIGIANO_SEC,
+    })
+  } catch (err) {
+    sendError(res, err)
+  }
+})
+
+router.get('/api/preventivi/:id/pdf-url', async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  try {
+    const { data: preventivo, error } = await supabase
+      .from('preventivi')
+      .select('pdf_url, user_id')
+      .eq('id', req.params.id)
+      .single()
+
+    if (error || !preventivo || preventivo.user_id !== user.id) {
+      return res.status(404).json({ error: 'Preventivo non trovato' })
+    }
+    if (!preventivo.pdf_url) {
+      return res.status(404).json({ error: 'PDF non disponibile' })
+    }
+
+    const pdfUrl = await signedUrlArtigianoPdfReference(preventivo.pdf_url)
+    if (!pdfUrl) {
+      return res.status(400).json({ error: 'Riferimento PDF non valido' })
+    }
+
+    res.json({
+      pdf_url: pdfUrl,
+      expires_in: SIGNED_URL_EXPIRY_ARTIGIANO_SEC,
+    })
   } catch (err) {
     sendError(res, err)
   }

@@ -2,6 +2,14 @@ const crypto = require('crypto')
 const { supabase } = require('../config')
 const { generaHTML } = require('./templates')
 const { generaPdfBufferDaHtml } = require('./pdfRenderer')
+const {
+  BUCKET_PREVENTIVI_PDF,
+  SIGNED_URL_EXPIRY_ARTIGIANO_SEC,
+  storagePathFromPdfReference,
+  signedUrlArtigianoPdfReference,
+  signedUrlClientePdfReference,
+  signedUrlRenderPdfReference,
+} = require('./pdfSignedUrls')
 
 const GIORNI_SCADENZA = 30
 
@@ -210,11 +218,10 @@ async function salvaDocumentoFirmaManuale(userId, preventivoId, invioId, documen
   const contentType = isPdf ? 'application/pdf' : mimeType?.includes('png') ? 'image/png' : 'image/jpeg'
   const path = `${userId}/firmati-manuali/${preventivoId}-${invioId}-${Date.now()}.${ext}`
   const { error } = await supabase.storage
-    .from('preventivi-pdf')
+    .from(BUCKET_PREVENTIVI_PDF)
     .upload(path, buffer, { contentType, upsert: false })
   if (error) throw new Error(error.message)
-  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
-  return { url: urlData.publicUrl, tipo: isPdf ? 'pdf' : 'immagine' }
+  return { storagePath: path, tipo: isPdf ? 'pdf' : 'immagine' }
 }
 
 async function creaInvioManuale(preventivoId, userId) {
@@ -248,8 +255,8 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
   if (!invio) invio = await creaInvioManuale(preventivoId, userId)
 
   const firmatoAt = new Date().toISOString()
-  let firmaImmagineUrl = null
-  let pdfFirmatoUrl = null
+  let firmaImmaginePath = null
+  let pdfFirmatoPath = null
 
   if (documentoBase64) {
     const saved = await salvaDocumentoFirmaManuale(
@@ -259,8 +266,8 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
       documentoBase64,
       mimeType || 'application/octet-stream',
     )
-    if (saved.tipo === 'pdf') pdfFirmatoUrl = saved.url
-    else firmaImmagineUrl = saved.url
+    if (saved.tipo === 'pdf') pdfFirmatoPath = saved.storagePath
+    else firmaImmaginePath = saved.storagePath
   }
 
   const audit = {
@@ -276,15 +283,15 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
       firmato_at: firmatoAt,
       metodo_firma: 'manuale',
       canale: invio.canale === 'manuale' || !invio.canale ? 'manuale' : invio.canale,
-      firma_immagine_url: firmaImmagineUrl,
-      pdf_firmato_url: pdfFirmatoUrl,
+      firma_immagine_url: firmaImmaginePath,
+      pdf_firmato_url: pdfFirmatoPath,
       audit_json: { ...(invio.audit_json || {}), ...audit },
       reminder_disabilitato: true,
     })
     .eq('id', invio.id)
 
   const updatePreventivo = { stato: 'accettato' }
-  if (pdfFirmatoUrl) updatePreventivo.pdf_url = pdfFirmatoUrl
+  if (pdfFirmatoPath) updatePreventivo.pdf_url = pdfFirmatoPath
   await supabase.from('preventivi').update(updatePreventivo).eq('id', preventivoId).eq('user_id', userId)
 
   await supabase.from('preventivo_invii_eventi').insert({
@@ -293,6 +300,7 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
   })
 
   const nomeCliente = preventivo.clienti?.nome || preventivo.nome_cliente || 'Cliente'
+
   await creaNotifica({
     userId,
     tipo: 'firma_ricevuta',
@@ -302,15 +310,25 @@ async function registraFirmaManuale(preventivoId, userId, { documentoBase64, mim
     messaggio: documentoBase64
       ? `${nomeCliente}: documento firmato caricato. Quando vuoi, segnalo come pagato?`
       : `${nomeCliente}: preventivo segnato come firmato a mano. Quando vuoi, segnalo come pagato?`,
-    payload: { nomeCliente, pdfFirmatoUrl, firmaImmagineUrl, chiediPagato: true, metodo: 'manuale' },
+    payload: {
+      nomeCliente,
+      pdf_firmato_path: pdfFirmatoPath,
+      firma_immagine_path: firmaImmaginePath,
+      chiediPagato: true,
+      metodo: 'manuale',
+    },
   })
 
   return {
     ok: true,
     invio_id: invio.id,
     firmato_at: firmatoAt,
-    pdf_firmato_url: pdfFirmatoUrl,
-    firma_immagine_url: firmaImmagineUrl,
+    pdf_firmato_url: pdfFirmatoPath
+      ? await signedUrlArtigianoPdfReference(pdfFirmatoPath)
+      : null,
+    firma_immagine_url: firmaImmaginePath
+      ? await signedUrlArtigianoPdfReference(firmaImmaginePath)
+      : null,
     metodo_firma: 'manuale',
   }
 }
@@ -320,11 +338,10 @@ async function generaPdfOriginale(preventivo, profile) {
   const pdfBuffer = await generaPdfBufferDaHtml(html)
   const path = `${preventivo.user_id}/originale/${preventivo.id}-${Date.now()}.pdf`
   const { error } = await supabase.storage
-    .from('preventivi-pdf')
+    .from(BUCKET_PREVENTIVI_PDF)
     .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: false })
   if (error) throw new Error(error.message)
-  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
-  return urlData.publicUrl
+  return path
 }
 
 async function invioFirmatoOnline(preventivoId) {
@@ -402,24 +419,44 @@ async function salvaImmagineFirma(userId, invioId, firmaBase64) {
   const buffer = Buffer.from(base64, 'base64')
   const path = `${userId}/firme/${invioId}.png`
   const { error } = await supabase.storage
-    .from('preventivi-pdf')
+    .from(BUCKET_PREVENTIVI_PDF)
     .upload(path, buffer, { contentType: 'image/png', upsert: true })
   if (error) throw new Error(error.message)
-  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
-  return urlData.publicUrl
+  const renderUrl = await signedUrlRenderPdfReference(path)
+  return { storagePath: path, renderUrl }
 }
 
-async function generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente, firmatoAt) {
+async function generaPdfFirmato(preventivo, profile, firmaRenderUrl, nomeCliente, firmatoAt) {
   let html = await htmlPreventivoDaRecord(preventivo, profile)
-  html = inserisciBloccoFirmaInHtml(html, bloccoFirmaCliente(firmaUrl, nomeCliente, firmatoAt))
+  html = inserisciBloccoFirmaInHtml(html, bloccoFirmaCliente(firmaRenderUrl, nomeCliente, firmatoAt))
   const pdfBuffer = await generaPdfBufferDaHtml(html)
   const path = `${preventivo.user_id}/firmati/${preventivo.id}-${Date.now()}.pdf`
   const { error } = await supabase.storage
-    .from('preventivi-pdf')
+    .from(BUCKET_PREVENTIVI_PDF)
     .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: false })
   if (error) throw new Error(error.message)
-  const { data: urlData } = supabase.storage.from('preventivi-pdf').getPublicUrl(path)
-  return urlData.publicUrl
+  return path
+}
+
+function payloadNotificaConPath(payload = {}) {
+  const out = { ...payload }
+
+  const pdfRef = out.pdf_firmato_path ?? out.pdfFirmatoUrl ?? out.pdfFirmatoPath ?? null
+  const imgRef = out.firma_immagine_path ?? out.firmaImmagineUrl ?? out.firmaImmaginePath ?? null
+
+  delete out.pdfFirmatoUrl
+  delete out.firmaImmagineUrl
+  delete out.pdfFirmatoPath
+  delete out.firmaImmaginePath
+
+  if (pdfRef) {
+    out.pdf_firmato_path = storagePathFromPdfReference(pdfRef) || pdfRef
+  }
+  if (imgRef) {
+    out.firma_immagine_path = storagePathFromPdfReference(imgRef) || imgRef
+  }
+
+  return out
 }
 
 async function creaNotifica({ userId, tipo, preventivoId, invioId, titolo, messaggio, payload }) {
@@ -430,9 +467,45 @@ async function creaNotifica({ userId, tipo, preventivoId, invioId, titolo, messa
     invio_id: invioId,
     titolo,
     messaggio,
-    payload: payload || {},
+    payload: payloadNotificaConPath(payload),
   })
   if (error) console.error('creaNotifica', error.message)
+}
+
+async function ultimoInvioFirma(preventivoId) {
+  const { data, error } = await supabase
+    .from('preventivo_invii')
+    .select('id, pdf_firmato_url, firma_immagine_url, firmato_at, metodo_firma, inviato_at')
+    .eq('preventivo_id', preventivoId)
+    .order('inviato_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
+async function urlInvioFirmaArtigiano(preventivoId, userId) {
+  await caricaPreventivoPerFirma(preventivoId, userId)
+
+  const invio = await ultimoInvioFirma(preventivoId)
+  if (!invio) throw new Error('Nessun invio firma trovato')
+
+  const pdf_firmato_url = invio.pdf_firmato_url
+    ? await signedUrlArtigianoPdfReference(invio.pdf_firmato_url)
+    : null
+  const firma_immagine_url = invio.firma_immagine_url
+    ? await signedUrlArtigianoPdfReference(invio.firma_immagine_url)
+    : null
+
+  return {
+    invio_id: invio.id,
+    pdf_firmato_url,
+    firma_immagine_url,
+    expires_in: SIGNED_URL_EXPIRY_ARTIGIANO_SEC,
+    firmato_at: invio.firmato_at,
+    metodo_firma: invio.metodo_firma,
+  }
 }
 
 async function accettaFirma(token, { firmaBase64, accettato }, audit) {
@@ -444,7 +517,7 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
     return {
       ok: true,
       giaFirmato: true,
-      pdfFirmatoUrl: risolto.invio.pdf_firmato_url,
+      pdfFirmatoUrl: await signedUrlClientePdfReference(risolto.invio.pdf_firmato_url),
     }
   }
 
@@ -457,16 +530,20 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
   const nomeCliente = preventivo.clienti?.nome || preventivo.nome_cliente || 'Cliente'
 
   const firmatoAt = new Date().toISOString()
-  const firmaUrl = await salvaImmagineFirma(invio.user_id, invio.id, firmaBase64)
-  const pdfFirmatoUrl = await generaPdfFirmato(preventivo, profile, firmaUrl, nomeCliente, firmatoAt)
+  const { storagePath: firmaImmaginePath, renderUrl: firmaRenderUrl } = await salvaImmagineFirma(
+    invio.user_id,
+    invio.id,
+    firmaBase64,
+  )
+  const pdfFirmatoPath = await generaPdfFirmato(preventivo, profile, firmaRenderUrl, nomeCliente, firmatoAt)
 
   await supabase
     .from('preventivo_invii')
     .update({
       firmato_at: firmatoAt,
       metodo_firma: 'online',
-      firma_immagine_url: firmaUrl,
-      pdf_firmato_url: pdfFirmatoUrl,
+      firma_immagine_url: firmaImmaginePath,
+      pdf_firmato_url: pdfFirmatoPath,
       audit_json: {
         ...audit,
         metodo: 'online',
@@ -479,8 +556,10 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
 
   await supabase
     .from('preventivi')
-    .update({ stato: 'accettato', pdf_url: pdfFirmatoUrl })
+    .update({ stato: 'accettato', pdf_url: pdfFirmatoPath })
     .eq('id', preventivo.id)
+
+  const pdfFirmatoUrl = await signedUrlClientePdfReference(pdfFirmatoPath)
 
   await creaNotifica({
     userId: invio.user_id,
@@ -489,7 +568,7 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
     invioId: invio.id,
     titolo: 'Preventivo firmato',
     messaggio: `${nomeCliente} ha accettato il preventivo. Quando vuoi, segnalo come pagato?`,
-    payload: { nomeCliente, pdfFirmatoUrl, chiediPagato: true },
+    payload: { nomeCliente, pdf_firmato_path: pdfFirmatoPath, chiediPagato: true },
   })
 
   return { ok: true, pdfFirmatoUrl, nomeCliente, firmatoAt }
@@ -511,7 +590,7 @@ async function datiPaginaFirma(token) {
       stato: 'gia_firmato',
       nomeCliente,
       nomeAzienda,
-      pdfFirmatoUrl: invio.pdf_firmato_url,
+      pdfFirmatoUrl: await signedUrlClientePdfReference(invio.pdf_firmato_url),
       firmatoAt: invio.firmato_at,
     }
   }
@@ -546,6 +625,7 @@ module.exports = {
   registraFirmaManuale,
   annullaFirmaOnline,
   caricaPreventivoPerFirma,
+  urlInvioFirmaArtigiano,
   creaNotifica,
   hashToken,
 }
