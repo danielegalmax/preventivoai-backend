@@ -225,11 +225,27 @@ webhookRouter.post('/api/stripe/webhook', express.raw({ type: 'application/json'
     return res.status(400).json({ error: 'Firma webhook mancante' })
   }
 
+  const webhookSecretConnect = process.env.STRIPE_WEBHOOK_SECRET_CONNECT
   let event
+  let errFirma
+
   try {
     event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret)
+    console.log('[stripe webhook] firma verificata con STRIPE_WEBHOOK_SECRET')
   } catch (err) {
-    return res.status(400).json({ error: `Firma webhook non valida: ${err.message}` })
+    errFirma = err
+    if (webhookSecretConnect) {
+      try {
+        event = stripe.webhooks.constructEvent(req.body, signature, webhookSecretConnect)
+        console.log('[stripe webhook] firma verificata con STRIPE_WEBHOOK_SECRET_CONNECT')
+      } catch (errConnect) {
+        errFirma = errConnect
+      }
+    }
+  }
+
+  if (!event) {
+    return res.status(400).json({ error: `Firma webhook non valida: ${errFirma.message}` })
   }
 
   if (event.type === 'account.updated') {
