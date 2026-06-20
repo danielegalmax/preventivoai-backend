@@ -18,6 +18,19 @@ async function caricaStripeProfilo(userId) {
   return data
 }
 
+function statoOnboardingDaAccountStripe(account) {
+  const chargesEnabled = account.charges_enabled === true
+  const detailsSubmitted = account.details_submitted === true
+
+  if (chargesEnabled) {
+    return { stripe_onboarding_status: 'verificato', stripe_charges_enabled: true }
+  }
+  if (detailsSubmitted) {
+    return { stripe_onboarding_status: 'in_attesa', stripe_charges_enabled: false }
+  }
+  return { stripe_onboarding_status: 'non_connesso', stripe_charges_enabled: false }
+}
+
 router.post('/api/stripe/connetti-account', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
@@ -67,9 +80,6 @@ router.post('/api/stripe/onboarding-link', express.json(), async (req, res) => {
       return res.status(400).json({ error: 'return_url e refresh_url sono obbligatori' })
     }
 
-    console.log('[stripeConnect] onboarding-link return_url ricevuto:', return_url)
-    console.log('[stripeConnect] onboarding-link refresh_url ricevuto:', refresh_url)
-
     const profilo = await caricaStripeProfilo(user.id)
     if (!profilo.stripe_account_id) {
       return res.status(400).json({ error: 'Account Stripe non collegato. Chiama prima /api/stripe/connetti-account.' })
@@ -83,10 +93,8 @@ router.post('/api/stripe/onboarding-link', express.json(), async (req, res) => {
     })
 
     res.json({ url: accountLink.url })
-  } catch (err) {
-    console.log('[stripeConnect] Stripe accountLinks.create error.message:', err?.message)
-    console.log('[stripeConnect] Stripe accountLinks.create error.raw:', err?.raw)
-    res.status(500).json({ error: err?.message || 'Errore interno' })
+  } catch {
+    res.status(500).json({ error: 'Errore durante la creazione del link di onboarding' })
   }
 })
 
@@ -94,12 +102,31 @@ router.get('/api/stripe/stato-account', async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
 
+  const stripe = getStripeClient()
+  if (!stripe) return res.status(500).json({ error: 'Stripe non configurato' })
+
   try {
     const profilo = await caricaStripeProfilo(user.id)
-    res.json({
-      stripe_onboarding_status: profilo.stripe_onboarding_status ?? 'non_connesso',
-      stripe_charges_enabled: profilo.stripe_charges_enabled ?? false,
-    })
+
+    if (!profilo.stripe_account_id) {
+      return res.json({
+        stripe_onboarding_status: 'non_connesso',
+        stripe_charges_enabled: false,
+      })
+    }
+
+    const account = await stripe.accounts.retrieve(profilo.stripe_account_id)
+    const stato = statoOnboardingDaAccountStripe(account)
+
+    await supabase
+      .from('profiles')
+      .update({
+        stripe_charges_enabled: stato.stripe_charges_enabled,
+        stripe_onboarding_status: stato.stripe_onboarding_status,
+      })
+      .eq('id', user.id)
+
+    res.json(stato)
   } catch (err) {
     sendError(res, err)
   }
