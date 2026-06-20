@@ -86,7 +86,7 @@ router.post('/api/stripe/onboarding-link', express.json(), async (req, res) => {
   } catch (err) {
     console.log('[stripeConnect] Stripe accountLinks.create error.message:', err?.message)
     console.log('[stripeConnect] Stripe accountLinks.create error.raw:', err?.raw)
-    sendError(res, err)
+    res.status(500).json({ error: err?.message || 'Errore interno' })
   }
 })
 
