@@ -67,6 +67,9 @@ router.post('/api/stripe/onboarding-link', express.json(), async (req, res) => {
       return res.status(400).json({ error: 'return_url e refresh_url sono obbligatori' })
     }
 
+    console.log('[stripeConnect] onboarding-link return_url ricevuto:', return_url)
+    console.log('[stripeConnect] onboarding-link refresh_url ricevuto:', refresh_url)
+
     const profilo = await caricaStripeProfilo(user.id)
     if (!profilo.stripe_account_id) {
       return res.status(400).json({ error: 'Account Stripe non collegato. Chiama prima /api/stripe/connetti-account.' })
@@ -81,6 +84,8 @@ router.post('/api/stripe/onboarding-link', express.json(), async (req, res) => {
 
     res.json({ url: accountLink.url })
   } catch (err) {
+    console.log('[stripeConnect] Stripe accountLinks.create error.message:', err?.message)
+    console.log('[stripeConnect] Stripe accountLinks.create error.raw:', err?.raw)
     sendError(res, err)
   }
 })
