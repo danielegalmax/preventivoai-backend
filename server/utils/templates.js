@@ -16,13 +16,18 @@ function generaHTML(testo, template, dati) {
     return `<div style="margin-top:12px;padding:12px 16px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;font-size:12px;color:#3730a3"><strong>Canone mensile:</strong><br>${righe}</div>`
   })() : ''
   const pagamentoRateHtml = p.pagamentoRate && p.pagamentoRate.numero ? (() => {
-    const righe = [
-      p.pagamentoRate.numero,
-      p.pagamentoRate.importoRata ? `Importo rata: ${p.pagamentoRate.importoRata}` : '',
-      p.pagamentoRate.ultimaRata ? `Ultima rata: ${p.pagamentoRate.ultimaRata}` : '',
-      p.pagamentoRate.scadenza ? `Scadenza prima rata: ${p.pagamentoRate.scadenza}` : '',
-    ].filter(Boolean).join('<br>')
-    return `<div style="margin-top:12px;padding:12px 16px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;font-size:12px;color:#065f46"><strong>Pagamento a rate:</strong><br>${righe}</div>`
+    const isAccontoSaldo = p.pagamentoRate.numero === 'Acconto + saldo'
+      && p.pagamentoRate.importoAcconto
+      && p.pagamentoRate.importoSaldo
+    const righe = isAccontoSaldo
+      ? [`Acconto: ${p.pagamentoRate.importoAcconto} · Saldo: ${p.pagamentoRate.importoSaldo}`]
+      : [
+        p.pagamentoRate.numero,
+        p.pagamentoRate.importoRata ? `Importo rata: ${p.pagamentoRate.importoRata}` : '',
+        p.pagamentoRate.ultimaRata ? `Ultima rata: ${p.pagamentoRate.ultimaRata}` : '',
+        p.pagamentoRate.scadenza ? `Scadenza prima rata: ${p.pagamentoRate.scadenza}` : '',
+      ].filter(Boolean)
+    return `<div style="margin-top:12px;padding:12px 16px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:6px;font-size:12px;color:#065f46"><strong>Pagamento a rate:</strong><br>${righe.join('<br>')}</div>`
   })() : ''
   const extraPagamentoHtml = `${canoneMensileHtml}${pagamentoRateHtml}`
 

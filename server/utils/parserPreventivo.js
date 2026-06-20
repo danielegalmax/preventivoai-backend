@@ -116,6 +116,16 @@ function parsaPreventivo(testo) {
       pagamentoRate.importoRata = riga.replace('IMPORTO RATA:', '').trim()
       continue
     }
+    if (riga.startsWith('IMPORTO ACCONTO:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.importoAcconto = riga.replace('IMPORTO ACCONTO:', '').trim()
+      continue
+    }
+    if (riga.startsWith('IMPORTO SALDO:')) {
+      pagamentoRate = pagamentoRate || {}
+      pagamentoRate.importoSaldo = riga.replace('IMPORTO SALDO:', '').trim()
+      continue
+    }
     if (riga.startsWith('ULTIMA RATA:')) {
       pagamentoRate = pagamentoRate || {}
       pagamentoRate.ultimaRata = riga.replace('ULTIMA RATA:', '').trim()
@@ -127,6 +137,7 @@ function parsaPreventivo(testo) {
       continue
     }
     if (riga.startsWith('PAGAMENTO:')) { pagamento = riga.replace('PAGAMENTO:', '').trim(); continue }
+    if (riga.startsWith('ACCONTO RICHIESTO:') && pagamento) { pagamento += '  ' + riga.replace('ACCONTO RICHIESTO:', '').trim(); continue }
     if (riga.startsWith('IBAN:') && pagamento) { pagamento += '  IBAN ' + riga.replace('IBAN:', '').trim(); continue }
     if (riga.startsWith('Intestatario:') && pagamento) { pagamento += '  ' + riga.replace('Intestatario:', '').trim(); continue }
     if (riga.startsWith('PayPal:') && pagamento) { pagamento += '  PayPal ' + riga.replace('PayPal:', '').trim(); continue }
