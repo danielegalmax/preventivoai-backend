@@ -3,6 +3,86 @@ const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { sendError } = require('../utils/http')
 const { getStripeClient } = require('../utils/stripePayments')
+const { creaNotifica } = require('../utils/firmaData')
+
+const MESI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
+function formatImportoEuro(n) {
+  return Number(n).toFixed(2).replace('.', ',')
+}
+
+async function caricaRataPerWebhook(rataId) {
+  const { data: rata, error } = await supabase
+    .from('rate_abbonamento')
+    .select('*, abbonamenti(user_id, preventivo_id)')
+    .eq('id', rataId)
+    .single()
+
+  if (error) throw error
+  return rata
+}
+
+async function riconciliaPagamentoAbbonamento(session) {
+  const metadata = session.metadata || {}
+  const userId = metadata.user_id
+  const rataId = metadata.rata_id
+  const tipo = metadata.tipo
+
+  if (tipo !== 'abbonamento' || !rataId) {
+    console.log('[stripe webhook] checkout.session.completed skip', {
+      tipo: tipo || null,
+      rata_id: rataId || null,
+      user_id: userId || null,
+    })
+    return
+  }
+
+  const rata = await caricaRataPerWebhook(rataId)
+  if (!rata) {
+    console.error('[stripe webhook] rata non trovata', rataId)
+    return
+  }
+
+  const abbonamento = rata.abbonamenti
+  if (!abbonamento || abbonamento.user_id !== userId) {
+    console.error('[stripe webhook] ownership rata non valida', { rataId, userId })
+    return
+  }
+
+  if (rata.stato === 'incassato') {
+    console.log('[stripe webhook] rata già incassata, skip', rataId)
+    return
+  }
+
+  const { error: updateError } = await supabase
+    .from('rate_abbonamento')
+    .update({
+      stato: 'incassato',
+      data_incasso: new Date().toISOString(),
+      acconto: rata.importo,
+    })
+    .eq('id', rataId)
+
+  if (updateError) throw updateError
+
+  const etichettaMese = `${MESI[rata.mese - 1]} ${rata.anno}`
+  await creaNotifica({
+    userId,
+    tipo: 'pagamento_ricevuto',
+    preventivoId: abbonamento.preventivo_id || null,
+    invioId: null,
+    titolo: 'Pagamento ricevuto',
+    messaggio: `€${formatImportoEuro(rata.importo)} incassato per ${etichettaMese}.`,
+    payload: {
+      rata_id: rataId,
+      abbonamento_id: rata.abbonamento_id,
+      importo: rata.importo,
+      mese: rata.mese,
+      anno: rata.anno,
+      stripe_session_id: session.id,
+    },
+  })
+}
 
 const router = express.Router()
 const webhookRouter = express.Router()
@@ -163,6 +243,13 @@ webhookRouter.post('/api/stripe/webhook', express.raw({ type: 'application/json'
         stripe_onboarding_status: chargesEnabled ? 'verificato' : 'in_attesa',
       })
       .eq('stripe_account_id', account.id)
+  } else if (event.type === 'checkout.session.completed') {
+    try {
+      const session = event.data.object
+      await riconciliaPagamentoAbbonamento(session)
+    } catch (err) {
+      console.error('[stripe webhook] checkout.session.completed', err.message)
+    }
   }
 
   res.json({ received: true })
