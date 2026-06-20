@@ -12,9 +12,11 @@ const profiloRoutes = require('./server/routes/profilo')
 const varieRoutes = require('./server/routes/varie')
 const accountRoutes = require('./server/routes/account')
 const firmaRoutes = require('./server/routes/firma')
+const stripeConnectRoutes = require('./server/routes/stripeConnect')
 
 const app = express()
 app.use(cors())
+app.use(stripeConnectRoutes.webhookRouter)
 app.use(express.json({ limit: '50mb' }))
 
 app.get('/health', (req, res) => {
@@ -28,6 +30,7 @@ app.use(profiloRoutes)
 app.use(varieRoutes)
 app.use(accountRoutes)
 app.use(firmaRoutes)
+app.use(stripeConnectRoutes)
 
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app)
