@@ -574,6 +574,19 @@ async function accettaFirma(token, { firmaBase64, accettato }, audit) {
   return { ok: true, pdfFirmatoUrl, nomeCliente, firmatoAt }
 }
 
+async function pdfOriginaleUrlPerPaginaFirma(preventivo, profile) {
+  try {
+    let pdfRef = preventivo.pdf_url
+    if (!pdfRef) {
+      pdfRef = await generaPdfOriginale(preventivo, profile)
+    }
+    if (!pdfRef) return undefined
+    return (await signedUrlClientePdfReference(pdfRef)) || undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function datiPaginaFirma(token) {
   const risolto = await risolviInvioDaToken(token)
   if (!risolto.invio) {
@@ -603,8 +616,9 @@ async function datiPaginaFirma(token) {
 
   const profile = await caricaProfiloPerPreventivo(invio.user_id)
   const html = await htmlPreventivoDaRecord(preventivo, profile)
+  const pdfOriginaleUrl = await pdfOriginaleUrlPerPaginaFirma(preventivo, profile)
 
-  return {
+  const payload = {
     stato: 'pronto',
     nomeCliente,
     nomeAzienda,
@@ -613,6 +627,9 @@ async function datiPaginaFirma(token) {
     html,
     scadeAt: invio.scade_at,
   }
+  if (pdfOriginaleUrl) payload.pdfOriginaleUrl = pdfOriginaleUrl
+
+  return payload
 }
 
 module.exports = {

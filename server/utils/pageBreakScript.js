@@ -224,16 +224,16 @@ function generaPageBreakScript() {
 
         var pageHeight = A4_HEIGHT_UNSCALED;
         var footer = document.querySelector('[data-section="footer"]');
-        var lastBottom = getLastServiziBottom();
 
-        if (footer && lastBottom > 0) {
+        if (footer) {
           var closingHeight = getClosingBlockHeight(footer);
-          var pageStart = Math.floor(lastBottom / pageHeight) * pageHeight;
-          var usedOnPage = lastBottom - pageStart;
-          var spaceLeft = pageHeight - getPageBottomMargin() - usedOnPage;
-          var docBottomPre = getDocumentLayoutBottom();
+          var anchorTop = getLayoutTop(footer);
+          var pageStart = Math.floor(anchorTop / pageHeight) * pageHeight;
+          var limit = pageStart + pageHeight - getPageBottomMargin();
 
-          if (docBottomPre > pageHeight && closingHeight > spaceLeft) {
+          // docBottomPre > pageHeight rimosso: bloccava il push su preventivi
+          // corti dove footer+firma superano il bordo pagina ma il doc resta ~1 pagina.
+          if (anchorTop + closingHeight > limit) {
             var targetTop = pageStart + pageHeight + PAGE_TOP_PADDING;
             injectSpacerBefore(footer, targetTop);
           }
