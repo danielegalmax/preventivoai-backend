@@ -93,10 +93,17 @@ async function caricaProfiliReminder(userIds) {
   if (userIds.length === 0) return new Map()
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, reminder_firma_giorni, reminder_firma_globale_disabilitato')
+    .select('id, reminder_firma_giorni, reminder_firma_globale_disabilitato, reminder_rate_giorni')
     .in('id', userIds)
   if (error) throw new Error(error.message)
   return new Map((data || []).map(p => [p.id, p]))
+}
+
+function giorniAnticipoRate(profilo) {
+  if (typeof profilo?.reminder_rate_giorni === 'number') {
+    return profilo.reminder_rate_giorni
+  }
+  return parseGiorniScadenzaRate()
 }
 
 async function controllaReminderFirma(dedupSince) {
@@ -107,6 +114,7 @@ async function controllaReminderFirma(dedupSince) {
       user_id,
       preventivo_id,
       inviato_at,
+      scade_at,
       link_token,
       preventivi(
         id,
@@ -140,6 +148,8 @@ async function controllaReminderFirma(dedupSince) {
 
   for (const invio of invii) {
     if (blocked.has(invio.preventivo_id)) continue
+
+    if (invio.scade_at != null && new Date(invio.scade_at).getTime() < now) continue
 
     const profilo = profili.get(invio.user_id)
     if (profilo?.reminder_firma_globale_disabilitato) continue
@@ -176,7 +186,7 @@ async function controllaReminderFirma(dedupSince) {
   return creati
 }
 
-async function controllaRateInScadenza(giorniScadenza, dedupSince) {
+async function controllaRateInScadenza(dedupSince) {
   const { data: rateRaw, error } = await supabase
     .from('rate_abbonamento')
     .select(`
@@ -212,6 +222,12 @@ async function controllaRateInScadenza(giorniScadenza, dedupSince) {
   if (errNotifiche) throw new Error(errNotifiche.message)
 
   const blocked = rateBloccate(notificheEsistenti || [])
+  const userIds = [...new Set(
+    (rateRaw || [])
+      .map(r => r.abbonamenti?.clienti?.user_id)
+      .filter(Boolean),
+  )]
+  const profili = await caricaProfiliReminder(userIds)
   let creati = 0
 
   for (const rata of rateRaw || []) {
@@ -220,11 +236,12 @@ async function controllaRateInScadenza(giorniScadenza, dedupSince) {
     const abbonamento = rata.abbonamenti
     if (!abbonamento?.attivo || abbonamento.deleted_at) continue
 
-    const scadenza = dataScadenzaRata(rata.anno, rata.mese, abbonamento.giorno_scadenza)
-    if (!scadenzaEntroProssimiGiorni(scadenza, giorniScadenza)) continue
-
     const userId = abbonamento.clienti?.user_id
     if (!userId) continue
+
+    const giorniScadenza = giorniAnticipoRate(profili.get(userId))
+    const scadenza = dataScadenzaRata(rata.anno, rata.mese, abbonamento.giorno_scadenza)
+    if (!scadenzaEntroProssimiGiorni(scadenza, giorniScadenza)) continue
 
     const clienteNome = abbonamento.clienti?.nome || 'Cliente'
     const residuo = rata.importo - (rata.acconto || 0)
@@ -263,10 +280,9 @@ router.post('/api/cron/controlli-giornalieri', async (req, res) => {
 
   try {
     const dedupSince = new Date(Date.now() - ORE_DEDUP * 60 * 60 * 1000)
-    const giorniScadenzaRate = parseGiorniScadenzaRate()
 
     const reminderFirmaCreati = await controllaReminderFirma(dedupSince)
-    const rataInScadenzaCreati = await controllaRateInScadenza(giorniScadenzaRate, dedupSince)
+    const rataInScadenzaCreati = await controllaRateInScadenza(dedupSince)
 
     res.json({
       ok: true,
