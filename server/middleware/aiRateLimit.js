@@ -29,7 +29,7 @@ function applicaLimiteAi(userId, endpoint, res) {
 
   const retryMin = Math.max(1, Math.ceil((esito.retryAfterMs || WINDOW_MS) / 60000))
   console.warn(
-    `[ai-rate-limit] userId=${userId} endpoint=${endpoint} richieste=${esito.count}/${MAX_REQUESTS} finestra=${WINDOW_MS / 60000}min retry~${retryMin}min`,
+    `[ai-rate-limit] endpoint=${endpoint} richieste=${esito.count}/${MAX_REQUESTS} finestra=${WINDOW_MS / 60000}min retry~${retryMin}min`,
   )
   res.status(429).json({ error: 'Troppe richieste, riprova tra qualche minuto' })
   return false

@@ -15,6 +15,16 @@ const {
 
 const stripe = getStripeClient()
 
+function dataScadenzaRata(anno, mese, giornoScadenza) {
+  const ultimoGiorno = new Date(anno, mese, 0).getDate()
+  const giorno = Math.min(Math.max(1, giornoScadenza || 1), ultimoGiorno)
+  return new Date(anno, mese - 1, giorno)
+}
+
+function formatDataIt(date) {
+  return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 router.post('/api/genera-pdf', express.json(), async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
@@ -130,7 +140,9 @@ router.post('/api/crea-link-pagamento-rata', express.json(), async (req, res) =>
     if (residuo <= 0) return res.status(400).json({ error: 'Rata già saldata' })
 
     const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
-    const descrizione = `Canone ${MESI[rata.mese - 1]} ${rata.anno}${cliente_nome ? ` — ${cliente_nome}` : ''}`
+    const descrizione = rata.abbonamenti?.giorno_scadenza
+      ? `Canone — scade il ${formatDataIt(dataScadenzaRata(rata.anno, rata.mese, rata.abbonamenti.giorno_scadenza))}${cliente_nome ? ` — ${cliente_nome}` : ''}`
+      : `Canone ${MESI[rata.mese - 1]} ${rata.anno}${cliente_nome ? ` — ${cliente_nome}` : ''}`
 
     const session = await creaSessionePagamento({
       amount: Math.round(residuo * 100),

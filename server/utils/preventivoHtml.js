@@ -19,7 +19,6 @@ async function generaHtmlPreventivo(req, user, options = {}) {
   const notePagamento = profile?.note_pagamento || ''
   const firmaNome = demo_profile?.firma_nome || profile?.firma_nome || ''
 
-  console.log('cliente_id ricevuto:', cliente_id)
   let clienteDati = null
   if (demo_cliente) {
     clienteDati = demo_cliente

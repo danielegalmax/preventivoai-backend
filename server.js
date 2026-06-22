@@ -16,6 +16,7 @@ const stripeConnectRoutes = require('./server/routes/stripeConnect')
 const cronRoutes = require('./server/routes/cron')
 
 const app = express()
+app.set('trust proxy', 1)
 app.use(cors())
 app.use(stripeConnectRoutes.webhookRouter)
 app.use(express.json({ limit: '50mb' }))

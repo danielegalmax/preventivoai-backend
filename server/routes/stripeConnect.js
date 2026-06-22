@@ -29,28 +29,24 @@ async function riconciliaPagamentoAbbonamento(session) {
   const tipo = metadata.tipo
 
   if (tipo !== 'abbonamento' || !rataId) {
-    console.log('[stripe webhook] checkout.session.completed skip', {
-      tipo: tipo || null,
-      rata_id: rataId || null,
-      user_id: userId || null,
-    })
+    console.log('[stripe webhook] checkout.session.completed skip (metadata non abbonamento)')
     return
   }
 
   const rata = await caricaRataPerWebhook(rataId)
   if (!rata) {
-    console.error('[stripe webhook] rata non trovata', rataId)
+    console.error('[stripe webhook] rata non trovata')
     return
   }
 
   const abbonamento = rata.abbonamenti
   if (!abbonamento || abbonamento.user_id !== userId) {
-    console.error('[stripe webhook] ownership rata non valida', { rataId, userId })
+    console.error('[stripe webhook] ownership rata non valida')
     return
   }
 
   if (rata.stato === 'incassato') {
-    console.log('[stripe webhook] rata già incassata, skip', rataId)
+    console.log('[stripe webhook] rata già incassata, skip')
     return
   }
 

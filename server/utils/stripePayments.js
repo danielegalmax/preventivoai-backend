@@ -60,7 +60,7 @@ async function creaSessionePagamento({ amount, descrizione, metadata }) {
 async function caricaRataAbbonamento(rataId) {
   const { data: rata } = await supabase
     .from('rate_abbonamento')
-    .select('*, abbonamenti(user_id, importo_default)')
+    .select('*, abbonamenti(user_id, importo_default, giorno_scadenza)')
     .eq('id', rataId)
     .single()
 

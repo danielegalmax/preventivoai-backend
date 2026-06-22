@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const verificaUtente = require('../middleware/auth')
+const { firmaPublicRateLimit } = require('../middleware/firmaRateLimit')
 const { sendError } = require('../utils/http')
 const { supabase } = require('../config')
 const {
@@ -115,7 +116,7 @@ router.get('/api/preventivi/:id/invio-firma-url', async (req, res) => {
   }
 })
 
-router.get('/api/public/firma/:token', async (req, res) => {
+router.get('/api/public/firma/:token', firmaPublicRateLimit, async (req, res) => {
   try {
     const data = await datiPaginaFirma(req.params.token)
     res.json(data)
@@ -124,7 +125,7 @@ router.get('/api/public/firma/:token', async (req, res) => {
   }
 })
 
-router.post('/api/public/firma/:token/accetta', express.json({ limit: '10mb' }), async (req, res) => {
+router.post('/api/public/firma/:token/accetta', firmaPublicRateLimit, express.json({ limit: '10mb' }), async (req, res) => {
   try {
     const { firma_base64, accettato } = req.body
     const audit = {
