@@ -2,11 +2,85 @@ const { generaPageBreakScript } = require('./pageBreakScript')
 
 const { parsaPreventivo } = require('./parserPreventivo')
 
+function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function escapeClienteDati(clienteDati) {
+  if (!clienteDati) return null
+  return {
+    nome: escapeHtml(clienteDati.nome),
+    indirizzo: escapeHtml(clienteDati.indirizzo),
+    email: escapeHtml(clienteDati.email),
+    telefono: escapeHtml(clienteDati.telefono),
+  }
+}
+
+function escapeParsedPreventivo(p) {
+  return {
+    ...p,
+    problema: escapeHtml(p.problema),
+    note: escapeHtml(p.note),
+    pagamento: escapeHtml(p.pagamento),
+    validita: escapeHtml(p.validita),
+    canoneMensile: escapeHtml(p.canoneMensile),
+    canoneScadenza: escapeHtml(p.canoneScadenza),
+    imponibile: escapeHtml(p.imponibile),
+    iva: escapeHtml(p.iva),
+    totale: escapeHtml(p.totale),
+    voci: (p.voci || []).map((v) => ({
+      ...v,
+      nome: escapeHtml(v.nome),
+      descrizione: escapeHtml(v.descrizione),
+      prezzo: escapeHtml(v.prezzo),
+      totale: escapeHtml(v.totale),
+      dettagli: (v.dettagli || []).map(escapeHtml),
+    })),
+    rimborsi: (p.rimborsi || []).map((r) => ({
+      ...r,
+      nome: escapeHtml(r.nome),
+      dettaglio: escapeHtml(r.dettaglio),
+      tipo: escapeHtml(r.tipo),
+      importo: escapeHtml(r.importo),
+    })),
+    pagamentoRate: p.pagamentoRate
+      ? {
+          ...p.pagamentoRate,
+          numero: escapeHtml(p.pagamentoRate.numero),
+          importoAcconto: escapeHtml(p.pagamentoRate.importoAcconto),
+          importoSaldo: escapeHtml(p.pagamentoRate.importoSaldo),
+          importoRata: escapeHtml(p.pagamentoRate.importoRata),
+          ultimaRata: escapeHtml(p.pagamentoRate.ultimaRata),
+          scadenza: escapeHtml(p.pagamentoRate.scadenza),
+        }
+      : p.pagamentoRate,
+  }
+}
+
 function generaHTML(testo, template, dati) {
-  const { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi } = dati
+  const {
+    logo,
+    colore,
+    nascondiPrezzi,
+  } = dati
+  const nome = escapeHtml(dati.nome)
+  const citta = escapeHtml(dati.citta)
+  const piva = escapeHtml(dati.piva)
+  const telefono = escapeHtml(dati.telefono)
+  const notePagamento = escapeHtml(dati.notePagamento)
+  const firmaNome = escapeHtml(dati.firmaNome)
+  const numeroPreventivo = escapeHtml(dati.numeroPreventivo)
+  const clienteDati = escapeClienteDati(dati.clienteDati)
+  const testoEscapato = escapeHtml(testo)
   const data = new Date().toLocaleDateString('it-IT')
   const logoHtml = logo ? `<img src="${logo}" style="max-height:60px;max-width:180px;object-fit:contain;" />` : ''
-  const p = parsaPreventivo(testo)
+  const p = escapeParsedPreventivo(parsaPreventivo(testo))
   const coloreHex = colore.startsWith('#') ? colore : `#${colore}`
   const canoneMensileHtml = p.canoneMensile ? (() => {
     const righe = [
@@ -47,7 +121,7 @@ function generaHTML(testo, template, dati) {
   ` : ''
 
 function tabellaVoci(sfondoHeader, testoHeader, sfondoRiga, sfondoAlt, testoPrimario, testoSecondario, fontFamily) {
-    if (p.voci.length === 0) return `<div style="font-family:${fontFamily};font-size:13px;white-space:pre-wrap;color:${testoPrimario};line-height:1.9">${testo}</div>`
+    if (p.voci.length === 0) return `<div style="font-family:${fontFamily};font-size:13px;white-space:pre-wrap;color:${testoPrimario};line-height:1.9">${testoEscapato}</div>`
     if (nascondiPrezzi) {
       const righe = p.voci.map((v, i) => {
         const dettagliHtml = v.dettagli && v.dettagli.length > 0

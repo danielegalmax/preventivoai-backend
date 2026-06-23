@@ -25,7 +25,9 @@ async function generaHtmlPreventivo(req, user, options = {}) {
   } else if (cliente_id) {
     const { data: cl } = await supabase.from('clienti')
       .select('nome, telefono, email, indirizzo')
-      .eq('id', cliente_id).single()
+      .eq('id', cliente_id)
+      .eq('user_id', user.id)
+      .single()
     if (cl) clienteDati = cl
   }
 
@@ -44,11 +46,11 @@ async function generaHtmlPreventivo(req, user, options = {}) {
 
   const html = generaHTML(testo, tmpl, { nome, citta, piva, telefono, logo, colore, notePagamento, firmaNome, numeroPreventivo, clienteDati, nascondiPrezzi: !!nascondi_prezzi })
   if (versione_padre_id) {
-    await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id)
+    await supabase.from('preventivi').update({ is_ultimo: false }).eq('id', versione_padre_id).eq('user_id', user.id)
   }
   let versione = 1
   if (versione_padre_id) {
-    const { data: padre } = await supabase.from('preventivi').select('versione').eq('id', versione_padre_id).single()
+    const { data: padre } = await supabase.from('preventivi').select('versione').eq('id', versione_padre_id).eq('user_id', user.id).single()
     if (padre) versione = (padre.versione || 1) + 1
   }
 

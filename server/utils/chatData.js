@@ -20,13 +20,14 @@ async function caricaServiziChat(userId) {
   return data
 }
 
-async function caricaClienteChat(clienteId) {
+async function caricaClienteChat(clienteId, userId) {
   if (!clienteId) return null
 
   const { data } = await supabase
     .from('clienti')
     .select('nome, telefono, email, indirizzo, note')
     .eq('id', clienteId)
+    .eq('user_id', userId)
     .single()
 
   return data

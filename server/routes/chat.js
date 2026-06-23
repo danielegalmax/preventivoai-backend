@@ -23,7 +23,7 @@ router.post('/api/chat', async (req, res) => {
   // Carica dati cliente se disponibile
   let clienteTesto = ''
   if (cliente_id) {
-    const cliente = await caricaClienteChat(cliente_id)
+    const cliente = await caricaClienteChat(cliente_id, user.id)
     if (cliente) {
       clienteTesto = `\nCLIENTE PER QUESTO PREVENTIVO:\n- Nome: ${cliente.nome}${cliente.telefono ? '\n- Telefono: ' + cliente.telefono : ''}${cliente.email ? '\n- Email: ' + cliente.email : ''}${cliente.indirizzo ? '\n- Indirizzo: ' + cliente.indirizzo : ''}${cliente.note ? '\n- Note: ' + cliente.note : ''}`
     }
