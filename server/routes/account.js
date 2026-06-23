@@ -76,6 +76,7 @@ router.post('/api/elimina-account', asyncRoute(async (req, res) => {
     report.tables.push({ table: 'rate_abbonamento', deleted: true, skipped: true, reason: 'no_abbonamenti' })
   }
 
+  // Prodotti digitali: prima gli acquisti collegati (FK), poi le righe prodotto (hard delete come preventivi).
   const { data: prodottiDigitali } = await supabase
     .from('prodotti_digitali')
     .select('id')
@@ -85,8 +86,6 @@ router.post('/api/elimina-account', asyncRoute(async (req, res) => {
 
   if (prodottoIds.length > 0) {
     report.tables.push(await deleteIfTableExists('acquisti_prodotti', q => q.delete().in('prodotto_id', prodottoIds)))
-  } else {
-    report.tables.push({ table: 'acquisti_prodotti', deleted: true, skipped: true, reason: 'no_prodotti_digitali' })
   }
 
   const deletions = [
@@ -95,6 +94,7 @@ router.post('/api/elimina-account', asyncRoute(async (req, res) => {
     ['servizi', q => q.delete().eq('user_id', user.id)],
     ['abbonamenti', q => q.delete().eq('user_id', user.id)],
     ['prodotti_digitali', q => q.delete().eq('user_id', user.id)],
+    ['notifiche', q => q.delete().eq('user_id', user.id)],
     ['metodi_pagamento', q => q.delete().eq('user_id', user.id)],
     ['eventi', q => q.delete().eq('user_id', user.id)],
     ['ai_usage', q => q.delete().eq('user_id', user.id)],
