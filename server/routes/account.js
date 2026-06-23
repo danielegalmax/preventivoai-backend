@@ -76,11 +76,25 @@ router.post('/api/elimina-account', asyncRoute(async (req, res) => {
     report.tables.push({ table: 'rate_abbonamento', deleted: true, skipped: true, reason: 'no_abbonamenti' })
   }
 
+  const { data: prodottiDigitali } = await supabase
+    .from('prodotti_digitali')
+    .select('id')
+    .eq('user_id', user.id)
+
+  const prodottoIds = (prodottiDigitali || []).map(p => p.id)
+
+  if (prodottoIds.length > 0) {
+    report.tables.push(await deleteIfTableExists('acquisti_prodotti', q => q.delete().in('prodotto_id', prodottoIds)))
+  } else {
+    report.tables.push({ table: 'acquisti_prodotti', deleted: true, skipped: true, reason: 'no_prodotti_digitali' })
+  }
+
   const deletions = [
     ['preventivi', q => q.delete().eq('user_id', user.id)],
     ['clienti', q => q.delete().eq('user_id', user.id)],
     ['servizi', q => q.delete().eq('user_id', user.id)],
     ['abbonamenti', q => q.delete().eq('user_id', user.id)],
+    ['prodotti_digitali', q => q.delete().eq('user_id', user.id)],
     ['metodi_pagamento', q => q.delete().eq('user_id', user.id)],
     ['eventi', q => q.delete().eq('user_id', user.id)],
     ['ai_usage', q => q.delete().eq('user_id', user.id)],
