@@ -29,7 +29,7 @@ async function riconciliaPagamentoAbbonamento(session) {
   const tipo = metadata.tipo
 
   if (tipo !== 'abbonamento' || !rataId) {
-    console.log('[stripe webhook] checkout.session.completed skip (metadata non abbonamento)')
+    console.info('[stripe webhook] checkout skip: metadata non abbonamento')
     return
   }
 
@@ -46,7 +46,7 @@ async function riconciliaPagamentoAbbonamento(session) {
   }
 
   if (rata.stato === 'incassato') {
-    console.log('[stripe webhook] rata già incassata, skip')
+    console.info('[stripe webhook] rata già incassata, skip')
     return
   }
 
@@ -227,13 +227,13 @@ webhookRouter.post('/api/stripe/webhook', express.raw({ type: 'application/json'
 
   try {
     event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret)
-    console.log('[stripe webhook] firma verificata con STRIPE_WEBHOOK_SECRET')
+    console.info('[stripe webhook] firma verificata')
   } catch (err) {
     errFirma = err
     if (webhookSecretConnect) {
       try {
         event = stripe.webhooks.constructEvent(req.body, signature, webhookSecretConnect)
-        console.log('[stripe webhook] firma verificata con STRIPE_WEBHOOK_SECRET_CONNECT')
+        console.info('[stripe webhook] firma verificata (Connect)')
       } catch (errConnect) {
         errFirma = errConnect
       }

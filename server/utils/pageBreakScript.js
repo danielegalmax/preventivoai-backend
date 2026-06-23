@@ -85,6 +85,7 @@ function generaPageBreakScript() {
         return true;
       }
 
+      // unused - kept for reference
       function getLastServiziBottom() {
         var rows = document.querySelectorAll('[data-section="servizi"] tbody > tr:not([data-repeated-header])');
         if (rows.length) return getLayoutBottom(rows[rows.length - 1]);
