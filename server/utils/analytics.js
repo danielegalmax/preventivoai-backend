@@ -42,6 +42,7 @@ async function trackEvento({ userId, evento, schermata = null, dati = null }) {
   }
 }
 
+// unused
 // TODO: collegare a POST /api/track sessioni
 async function trackSessione(userId) {
   try {
