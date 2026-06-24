@@ -29,6 +29,7 @@ async function riconciliaPagamentoAbbonamento(session) {
   const tipo = metadata.tipo
 
   if (tipo === 'preventivo') {
+    console.log('[stripe webhook] tipo:', tipo)
     const { data: preventivo, error: preventivoError } = await supabase
       .from('preventivi')
       .select('id, user_id')
@@ -37,6 +38,8 @@ async function riconciliaPagamentoAbbonamento(session) {
       .maybeSingle()
 
     if (preventivoError) throw preventivoError
+
+    console.log('[stripe webhook] preventivo trovato:', preventivo?.id)
 
     if (!preventivo) {
       console.warn('[stripe webhook] preventivo non trovato per stripe_session_id:', session.id)
@@ -49,6 +52,8 @@ async function riconciliaPagamentoAbbonamento(session) {
       .eq('id', preventivo.id)
 
     if (updatePreventivoError) throw updatePreventivoError
+
+    console.log('[stripe webhook] preventivo aggiornato')
 
     const importoFormattato = formatImportoEuro(session.amount_total / 100)
     await creaNotifica({
@@ -64,6 +69,7 @@ async function riconciliaPagamentoAbbonamento(session) {
         stripe_session_id: session.id,
       },
     })
+    console.log('[stripe webhook] notifica creata')
     return
   }
 
@@ -297,6 +303,8 @@ webhookRouter.post('/api/stripe/webhook', express.raw({ type: 'application/json'
   } else if (event.type === 'checkout.session.completed') {
     try {
       const session = event.data.object
+      console.log('[stripe webhook] session metadata:', JSON.stringify(session.metadata))
+      console.log('[stripe webhook] session id:', session.id)
       await riconciliaPagamentoAbbonamento(session)
     } catch (err) {
       console.error('[stripe webhook] checkout.session.completed', err.message)
