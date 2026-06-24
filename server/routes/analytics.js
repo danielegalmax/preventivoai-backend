@@ -5,12 +5,13 @@ const { trackEvento } = require('../utils/analytics')
 
 const router = express.Router()
 
+const { ipKeyGenerator } = require('express-rate-limit')
 const trackRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.trackUser?.id || req.ip,
+  keyGenerator: (req) => req.trackUser?.id || ipKeyGenerator(req),
   message: { error: 'Troppe richieste di tracking, riprova più tardi' },
 })
 
