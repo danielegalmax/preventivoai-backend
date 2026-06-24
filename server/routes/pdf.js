@@ -100,6 +100,41 @@ router.get('/api/preventivi/:id/pdf-url', async (req, res) => {
   }
 })
 
+// ── POST /api/preventivi/:id/stripe-session ──────────────────────────────
+
+router.post('/api/preventivi/:id/stripe-session', express.json(), async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+
+  try {
+    const { stripe_session_id } = req.body
+    if (!stripe_session_id) return res.status(400).json({ error: 'stripe_session_id mancante' })
+
+    const { data: preventivo, error: selectError } = await supabase
+      .from('preventivi')
+      .select('id')
+      .eq('id', req.params.id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (selectError || !preventivo) {
+      return res.status(404).json({ error: 'Preventivo non trovato' })
+    }
+
+    const { error: updateError } = await supabase
+      .from('preventivi')
+      .update({ stripe_session_id })
+      .eq('id', req.params.id)
+      .eq('user_id', user.id)
+
+    if (updateError) throw updateError
+
+    res.json({ ok: true })
+  } catch (err) {
+    sendError(res, err)
+  }
+})
+
 // ── POST /api/crea-link-pagamento ──────────────────────────────────────
 
 router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
@@ -112,10 +147,10 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
     const amount = Math.round(Number(importo) * 100)
     if (!amount || amount < 50) return res.status(400).json({ error: 'Importo non valido' })
 
-    const session = await creaSessionePagamento({ amount, descrizione, metadata: { user_id: user.id } })
+    const session = await creaSessionePagamento({ amount, descrizione, metadata: { user_id: user.id, preventivo_id: req.body.preventivo_id || null, tipo: 'preventivo' } })
 
     trackEvento({ userId: user.id, evento: 'stripe_link_creato', schermata: 'preventivo-pdf', dati: { importo } })
-    res.json({ payment_url: session.url })
+    res.json({ payment_url: session.url, stripe_session_id: session.id })
   } catch (err) {
     sendError(res, err)
   }

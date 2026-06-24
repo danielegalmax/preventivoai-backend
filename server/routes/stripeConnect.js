@@ -28,6 +28,45 @@ async function riconciliaPagamentoAbbonamento(session) {
   const rataId = metadata.rata_id
   const tipo = metadata.tipo
 
+  if (tipo === 'preventivo') {
+    const { data: preventivo, error: preventivoError } = await supabase
+      .from('preventivi')
+      .select('id, user_id')
+      .eq('stripe_session_id', session.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (preventivoError) throw preventivoError
+
+    if (!preventivo) {
+      console.warn('[stripe webhook] preventivo non trovato per stripe_session_id:', session.id)
+      return
+    }
+
+    const { error: updatePreventivoError } = await supabase
+      .from('preventivi')
+      .update({ pagato: true, data_pagamento: new Date().toISOString() })
+      .eq('id', preventivo.id)
+
+    if (updatePreventivoError) throw updatePreventivoError
+
+    const importoFormattato = formatImportoEuro(session.amount_total / 100)
+    await creaNotifica({
+      userId: preventivo.user_id,
+      tipo: 'pagamento_ricevuto',
+      preventivoId: preventivo.id,
+      invioId: null,
+      titolo: 'Pagamento ricevuto',
+      messaggio: `Pagamento di €${importoFormattato} ricevuto.`,
+      payload: {
+        preventivo_id: preventivo.id,
+        importo: session.amount_total / 100,
+        stripe_session_id: session.id,
+      },
+    })
+    return
+  }
+
   if (tipo !== 'abbonamento' || !rataId) {
     console.info('[stripe webhook] checkout skip: metadata non abbonamento')
     return

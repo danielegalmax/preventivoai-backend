@@ -38,7 +38,7 @@ async function creaSessionePagamento({ amount, descrizione, metadata }) {
     throw err
   }
 
-  return stripe.checkout.sessions.create({
+  const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
     line_items: [{
@@ -55,6 +55,7 @@ async function creaSessionePagamento({ amount, descrizione, metadata }) {
   }, {
     stripeAccount: profilo.stripe_account_id,
   })
+  return session
 }
 
 async function caricaRataAbbonamento(rataId) {
