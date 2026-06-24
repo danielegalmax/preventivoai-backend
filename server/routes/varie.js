@@ -4,6 +4,7 @@ const verificaUtente = require('../middleware/auth')
 const { asyncRoute, sendError } = require('../utils/http')
 const { trascriviAudioBase64 } = require('../utils/audioTranscription')
 const { caricaTrascrizioni, salvaPreventivoBozza } = require('../utils/varieData')
+const { calcolaIncassatoTotale } = require('../utils/incassi')
 
 router.post('/api/salva-preventivo', asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
@@ -36,6 +37,17 @@ router.get('/api/trascrizioni', asyncRoute(async (req, res) => {
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
 }))
+
+router.get('/api/home-stats', async (req, res) => {
+  const user = await verificaUtente(req, res)
+  if (!user) return
+  try {
+    const incassatoTotale = await calcolaIncassatoTotale(user.id)
+    res.json({ incassatoTotale })
+  } catch (err) {
+    sendError(res, err)
+  }
+})
 
 // ── POST /api/upload-logo ──────────────────────────────────────────
 
