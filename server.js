@@ -24,6 +24,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',      // Next.js dev
   'tauri://localhost',          // Tauri produzione
   'https://tauri.localhost',    // Tauri produzione alternativo
+  'http://tauri.localhost',     // Tauri produzione Windows
 ]
 
 app.use(cors({
