@@ -1,8 +1,17 @@
 const express = require('express')
+const rateLimit = require('express-rate-limit')
 const router = express.Router()
 const { supabase } = require('../config')
 const verificaUtente = require('../middleware/auth')
 const { asyncRoute } = require('../utils/http')
+
+const eliminaAccountLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: { error: 'Troppe richieste di eliminazione account. Riprova tra un\'ora.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 
 function isMissingTableError(error) {
   return error && (
@@ -51,9 +60,14 @@ async function removeStoragePrefix(bucket, prefix) {
   return { bucket, deleted: true, files: files.length }
 }
 
-router.post('/api/elimina-account', asyncRoute(async (req, res) => {
+router.post('/api/elimina-account', eliminaAccountLimit, express.json(), asyncRoute(async (req, res) => {
   const user = await verificaUtente(req, res)
   if (!user) return
+
+  const { confirm } = req.body
+  if (confirm !== 'ELIMINA') {
+    return res.status(400).json({ error: 'Conferma richiesta: invia { "confirm": "ELIMINA" }' })
+  }
 
   const report = {
     storage: [],
@@ -100,6 +114,8 @@ router.post('/api/elimina-account', asyncRoute(async (req, res) => {
     ['ai_usage', q => q.delete().eq('user_id', user.id)],
     ['sessioni', q => q.delete().eq('user_id', user.id)],
     ['segnalazioni', q => q.delete().eq('user_id', user.id)],
+    ['trascrizioni', q => q.delete().eq('user_id', user.id)],
+    ['profili_fiscali', q => q.delete().eq('user_id', user.id)],
     ['profiles', q => q.delete().eq('id', user.id)],
   ]
 
