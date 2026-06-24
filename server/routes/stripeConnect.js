@@ -4,6 +4,7 @@ const verificaUtente = require('../middleware/auth')
 const { sendError } = require('../utils/http')
 const { getStripeClient } = require('../utils/stripePayments')
 const { creaNotifica } = require('../utils/firmaData')
+const { inviaEmailPagamentoRicevuto, inviaEmailPagamentoClienteOk } = require('../utils/email')
 
 const MESI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
@@ -83,6 +84,66 @@ async function riconciliaPagamentoAbbonamento(session) {
         stripe_session_id: session.id,
       },
     })
+
+    // Email artigiano
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(preventivo.user_id)
+      const { data: profilo } = await supabase
+        .from('profiles')
+        .select('nome_azienda')
+        .eq('id', preventivo.user_id)
+        .maybeSingle()
+      const { data: preventivoDettaglio } = await supabase
+        .from('preventivi')
+        .select('numero_preventivo, cliente_id, nome_cliente')
+        .eq('id', preventivo.id)
+        .maybeSingle()
+
+      const emailArtigiano = authUser?.user?.email
+      const nomeArtigiano = profilo?.nome_azienda || ''
+      const numeroPreventivo = preventivoDettaglio?.numero_preventivo || ''
+      const importoFormattato2 = formatImportoEuro(session.amount_total / 100)
+
+      if (emailArtigiano) {
+        await inviaEmailPagamentoRicevuto({
+          emailArtigiano,
+          nomeArtigiano,
+          importo: importoFormattato2,
+          numeroPreventivo,
+        })
+      }
+
+      // Email cliente (se disponibile)
+      let emailCliente = session.customer_email || null
+      if (!emailCliente && preventivoDettaglio?.cliente_id) {
+        const { data: cliente } = await supabase
+          .from('clienti')
+          .select('email, nome')
+          .eq('id', preventivoDettaglio.cliente_id)
+          .maybeSingle()
+        emailCliente = cliente?.email || null
+        if (emailCliente) {
+          await inviaEmailPagamentoClienteOk({
+            emailCliente,
+            nomeCliente: cliente?.nome || preventivoDettaglio?.nome_cliente || '',
+            importo: importoFormattato2,
+            nomeArtigiano,
+            numeroPreventivo,
+          })
+        }
+      } else if (emailCliente) {
+        await inviaEmailPagamentoClienteOk({
+          emailCliente,
+          nomeCliente: preventivoDettaglio?.nome_cliente || '',
+          importo: importoFormattato2,
+          nomeArtigiano,
+          numeroPreventivo,
+        })
+      }
+    } catch (emailErr) {
+      console.error('[stripe webhook] errore invio email pagamento:', emailErr.message)
+    }
+
     return
   }
 
