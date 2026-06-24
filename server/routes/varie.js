@@ -39,4 +39,12 @@ router.get('/api/trascrizioni', asyncRoute(async (req, res) => {
 
 // ── POST /api/upload-logo ──────────────────────────────────────────
 
+router.get('/api/versione-minima', (req, res) => {
+  res.json({
+    android: process.env.VERSION_MINIMA_ANDROID ?? '1.0.0',
+    desktop: process.env.VERSION_MINIMA_DESKTOP ?? '1.0.0',
+    ios: process.env.VERSION_MINIMA_IOS ?? '1.0.0',
+  })
+})
+
 module.exports = router
