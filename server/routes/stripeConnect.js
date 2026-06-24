@@ -48,7 +48,7 @@ async function riconciliaPagamentoAbbonamento(session) {
 
     const { error: updatePreventivoError } = await supabase
       .from('preventivi')
-      .update({ pagato: true, data_pagamento: new Date().toISOString() })
+      .update({ pagato: true, data_pagamento: new Date().toISOString(), stato: 'accettato' })
       .eq('id', preventivo.id)
 
     if (updatePreventivoError) throw updatePreventivoError
