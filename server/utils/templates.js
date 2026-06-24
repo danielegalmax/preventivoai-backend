@@ -27,7 +27,7 @@ function escapeParsedPreventivo(p) {
     ...p,
     problema: escapeHtml(p.problema),
     note: escapeHtml(p.note),
-    pagamento: escapeHtml(p.pagamento),
+    pagamento: p.pagamento && p.pagamento.includes('<') ? p.pagamento : escapeHtml(p.pagamento),
     validita: escapeHtml(p.validita),
     canoneMensile: escapeHtml(p.canoneMensile),
     canoneScadenza: escapeHtml(p.canoneScadenza),
