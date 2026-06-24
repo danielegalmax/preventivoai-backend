@@ -29,9 +29,15 @@ async function riconciliaPagamentoAbbonamento(session) {
   const tipo = metadata.tipo
 
   if (tipo === 'preventivo') {
+    // Verifica che il pagamento sia effettivamente completato
+    if (session.payment_status !== 'paid') {
+      console.info('[stripe webhook] preventivo skip: payment_status non paid:', session.payment_status)
+      return
+    }
+
     const { data: preventivo, error: preventivoError } = await supabase
       .from('preventivi')
-      .select('id, user_id')
+      .select('id, user_id, pagato, importo_totale')
       .eq('stripe_session_id', session.id)
       .limit(1)
       .maybeSingle()
@@ -41,6 +47,19 @@ async function riconciliaPagamentoAbbonamento(session) {
     if (!preventivo) {
       console.warn('[stripe webhook] preventivo non trovato per stripe_session_id:', session.id)
       return
+    }
+
+    // Idempotenza: se già pagato non fare nulla
+    if (preventivo.pagato) {
+      console.info('[stripe webhook] preventivo già pagato, skip:', preventivo.id)
+      return
+    }
+
+    // Verifica importo: amount_total deve corrispondere all'importo atteso nei metadata
+    const importoAtteso = metadata.importo_atteso ? Number(metadata.importo_atteso) : null
+    if (importoAtteso && session.amount_total !== importoAtteso) {
+      console.warn('[stripe webhook] importo non corrispondente:', session.amount_total, 'atteso:', importoAtteso)
+      // Non blocchiamo il pagamento ma lo logghiamo per audit
     }
 
     const { error: updatePreventivoError } = await supabase

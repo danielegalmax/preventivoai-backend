@@ -100,41 +100,6 @@ router.get('/api/preventivi/:id/pdf-url', async (req, res) => {
   }
 })
 
-// ── POST /api/preventivi/:id/stripe-session ──────────────────────────────
-
-router.post('/api/preventivi/:id/stripe-session', express.json(), async (req, res) => {
-  const user = await verificaUtente(req, res)
-  if (!user) return
-
-  try {
-    const { stripe_session_id } = req.body
-    if (!stripe_session_id) return res.status(400).json({ error: 'stripe_session_id mancante' })
-
-    const { data: preventivo, error: selectError } = await supabase
-      .from('preventivi')
-      .select('id')
-      .eq('id', req.params.id)
-      .eq('user_id', user.id)
-      .single()
-
-    if (selectError || !preventivo) {
-      return res.status(404).json({ error: 'Preventivo non trovato' })
-    }
-
-    const { error: updateError } = await supabase
-      .from('preventivi')
-      .update({ stripe_session_id })
-      .eq('id', req.params.id)
-      .eq('user_id', user.id)
-
-    if (updateError) throw updateError
-
-    res.json({ ok: true })
-  } catch (err) {
-    sendError(res, err)
-  }
-})
-
 // ── POST /api/crea-link-pagamento ──────────────────────────────────────
 
 router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
@@ -143,13 +108,54 @@ router.post('/api/crea-link-pagamento', express.json(), async (req, res) => {
   if (!stripe) return res.status(500).json({ error: 'Stripe non configurato' })
 
   try {
-    const { importo, descrizione } = req.body
-    const amount = Math.round(Number(importo) * 100)
-    if (!amount || amount < 50) return res.status(400).json({ error: 'Importo non valido' })
+    const { preventivo_id, descrizione } = req.body
 
-    const session = await creaSessionePagamento({ amount, descrizione, metadata: { user_id: user.id, preventivo_id: req.body.preventivo_id || null, tipo: 'preventivo' } })
+    if (!preventivo_id) {
+      return res.status(400).json({ error: 'preventivo_id obbligatorio' })
+    }
 
-    trackEvento({ userId: user.id, evento: 'stripe_link_creato', schermata: 'preventivo-pdf', dati: { importo } })
+    // Carica importo dal DB — non si fida del client
+    const { data: preventivo, error: prevErr } = await supabase
+      .from('preventivi')
+      .select('id, importo_totale, user_id')
+      .eq('id', preventivo_id)
+      .eq('user_id', user.id)
+      .eq('is_ultimo', true)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (prevErr || !preventivo) {
+      return res.status(404).json({ error: 'Preventivo non trovato' })
+    }
+
+    if (!preventivo.importo_totale || preventivo.importo_totale <= 0) {
+      return res.status(400).json({ error: 'Importo preventivo non valido' })
+    }
+
+    const amount = Math.round(preventivo.importo_totale * 100)
+    if (amount < 50) {
+      return res.status(400).json({ error: 'Importo troppo basso (minimo €0,50)' })
+    }
+
+    const session = await creaSessionePagamento({
+      amount,
+      descrizione: descrizione || `Preventivo`,
+      metadata: {
+        user_id: user.id,
+        preventivo_id: preventivo.id,
+        tipo: 'preventivo',
+        importo_atteso: String(amount),
+      }
+    })
+
+    // Salva stripe_session_id sul preventivo subito
+    await supabase
+      .from('preventivi')
+      .update({ stripe_session_id: session.id })
+      .eq('id', preventivo.id)
+      .eq('user_id', user.id)
+
+    trackEvento({ userId: user.id, evento: 'stripe_link_creato', schermata: 'preventivo-pdf', dati: { importo: preventivo.importo_totale } })
     res.json({ payment_url: session.url, stripe_session_id: session.id })
   } catch (err) {
     sendError(res, err)
