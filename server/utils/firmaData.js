@@ -10,6 +10,7 @@ const {
   signedUrlClientePdfReference,
   signedUrlRenderPdfReference,
 } = require('./pdfSignedUrls')
+const { mandaPushNotifica } = require('./pushNotifications')
 
 const GIORNI_SCADENZA = 30
 
@@ -470,6 +471,14 @@ async function creaNotifica({ userId, tipo, preventivoId, invioId, titolo, messa
     payload: payloadNotificaConPath(payload),
   })
   if (error) console.error('creaNotifica', error.message)
+
+  // Manda push nativa in parallelo alla notifica in-app
+  mandaPushNotifica(
+    userId,
+    titolo,
+    messaggio,
+    { tipo, riferimentoId: preventivoId ?? null }
+  ).catch(() => {})
 }
 
 async function ultimoInvioFirma(preventivoId) {
