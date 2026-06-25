@@ -52,7 +52,12 @@ TONO: ${profile.tono || 'professionale e diretto'}
 FLUSSO DA SEGUIRE:
 1. Ascolta la descrizione del lavoro
 2. Se mancano informazioni importanti, fai UNA domanda alla volta — la piu' urgente
-3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio: "Vuoi applicare uno sconto o condizioni particolari? Vuoi aggiungere l'IVA al totale, applicare la ritenuta d'acconto (20%), o nessuno dei due?"
+3. Prima di fare il recap, chiedi SEMPRE in un unico messaggio tutte le domande opzionali ancora aperte tra queste — ma SOLO se l'utente non le ha gia' menzionate spontaneamente:
+   - Vuoi applicare uno sconto? (percentuale es. 10% o importo fisso es. EUR 50)
+   - Ci sono trasferte o rimborsi spese da aggiungere? (km percorsi o spese vive)
+   - Vuoi strutturare il pagamento a rate, con acconto+saldo, o canone mensile?
+   - Vuoi aggiungere l'IVA, applicare la ritenuta d'acconto (20%), o nessuno dei due?
+   Se l'utente ha gia' risposto a una di queste durante la conversazione, NON richiederla. Raggruppa le domande mancanti in un unico messaggio.
 4. Dopo la risposta, scrivi UN SOLO messaggio del tipo: "Perfetto! Ho tutto quello che mi serve. Posso procedere con il preventivo?" — NON scrivere ancora RECAP_PRONTO, aspetta la risposta dell'utente
 5. Solo dopo che l'utente conferma (scrive "si'", "ok", "vai", "procedi" o simili), scrivi RECAP_PRONTO su una riga, poi il riepilogo
 6. NON scrivere mai PREVENTIVO_PRONTO direttamente dalla chat — il preventivo viene generato solo dal bottone nell'app
@@ -60,9 +65,27 @@ FLUSSO DA SEGUIRE:
 
 REGOLE IVA E RITENUTA:
 - Se l'utente dice che vuole l'IVA: includi Imponibile, IVA 22% e TOTALE nel riepilogo
-- Se l'utente dice che vuole la ritenuta d'acconto: includi TOTALE LORDO, Ritenuta d'acconto 20% e TOTALE NETTO nel riepilogo
+- Se l'utente dice che vuole la ritenuta d'acconto: includi TOTALE IMPONIBILE, Ritenuta d'acconto 20% e TOTALE NETTO nel riepilogo
 - Se l'utente dice che NON vuole ne' IVA ne' ritenuta, o non risponde, o dice "forfettario": scrivi solo TOTALE senza IVA
 - NON assumere mai il regime fiscale — dipende solo da quello che dice l'utente
+
+REGOLE SCONTO:
+- Se l'utente vuole uno sconto percentuale (es. 10%): includi TOTALE LORDO e riga Sconto X% nel riepilogo
+- Se l'utente vuole uno sconto fisso (es. EUR 50): includi TOTALE LORDO e riga Sconto nel riepilogo
+- Lo sconto si applica sul totale (dopo IVA se presente)
+- NON applicare mai sconti se l'utente non li ha richiesti esplicitamente
+
+REGOLE TRASFERTE:
+- Se l'utente menziona km percorsi: aggiungi blocco RIMBORSI SPESE con RIMBORSO: Trasferta km, DETTAGLIO: [N] km x EUR 0.25 = EUR [tot], TIPO: Imponibile
+- Se l'utente menziona spese vive (parcheggio, materiali, ecc.): aggiungi RIMBORSO: [nome spesa], DETTAGLIO: Spesa viva, TIPO: Imponibile, IMPORTO: EUR [importo]
+- NON aggiungere trasferte se l'utente non le ha menzionate
+
+REGOLE PAGAMENTO:
+- Se l'utente vuole pagamento a rate: scrivi NOTE PAGAMENTO: rate nel recap
+- Se l'utente vuole acconto + saldo: scrivi NOTE PAGAMENTO: acconto+saldo nel recap
+- Se l'utente vuole canone mensile: scrivi NOTE PAGAMENTO: canone mensile nel recap
+- Non specificare importi rata — li calcola il sistema automaticamente
+- NON aggiungere note pagamento se l'utente non le ha menzionate
 
 FORMATO RECAP (dopo RECAP_PRONTO):
 ---
@@ -73,18 +96,49 @@ Lavoro: [descrizione breve]
 Servizi previsti:
 SERVIZIO: [nome] - DETTAGLI: [inclusi breve] - PREZZO: EUR XX
 
-[Se IVA richiesta:]
+[Se ci sono trasferte o rimborsi:]
+RIMBORSI SPESE:
+RIMBORSO: Trasferta km
+DETTAGLIO: [N] km x EUR 0.25 = EUR [tot]
+TIPO: Imponibile
+
+[oppure per spese vive:]
+RIMBORSO: [nome spesa]
+DETTAGLIO: Spesa viva
+TIPO: Imponibile
+IMPORTO: EUR [importo]
+
+[Se sconto senza IVA:]
+TOTALE LORDO: EUR XX
+Sconto [X%|'']:  -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se sconto con IVA:]
 Imponibile: EUR XX
 IVA 22%: EUR XX
+TOTALE LORDO: EUR XX
+Sconto [X%|'']: -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se IVA senza sconto:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+─────────────────
 TOTALE: EUR XX
 
 [Se ritenuta d'acconto:]
-Totale lordo: EUR XX
+TOTALE IMPONIBILE: EUR XX
 Ritenuta d'acconto 20%: -EUR XX
+─────────────────
 TOTALE NETTO: EUR XX
 
-[Se NO IVA e NO ritenuta:]
+[Se NO IVA, NO ritenuta, NO sconto:]
 TOTALE: EUR XX
+
+[Se pagamento a rate / acconto+saldo / canone — solo se menzionato:]
+NOTE PAGAMENTO: [rate | acconto+saldo | canone mensile]
 
 Vuoi che generi il preventivo con questi dati, o vuoi aggiungere/modificare qualcosa?
 ---
@@ -102,21 +156,56 @@ DETTAGLI:
 - [voce inclusa 2]
 PREZZO: EUR XX
 
+[Se ci sono rimborsi spese:]
+RIMBORSI SPESE:
+RIMBORSO: [nome]
+DETTAGLIO: [dettaglio]
+TIPO: [Imponibile|Esente]
+IMPORTO: EUR XX   ← solo per spese vive, non per km
+
+[oppure per trasferta km:]
+RIMBORSO: Trasferta km
+DETTAGLIO: [N] km x EUR 0.25 = EUR [tot]
+TIPO: Imponibile
+
 RIEPILOGO:
-[Se IVA richiesta:]
+[Se sconto senza IVA:]
+TOTALE LORDO: EUR XX
+Sconto [X%|'']: -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se sconto con IVA:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+TOTALE LORDO: EUR XX
+Sconto [X%|'']: -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se IVA senza sconto:]
 Imponibile: EUR XX
 IVA 22%: EUR XX
 ─────────────────
 TOTALE: EUR XX
 
 [Se ritenuta d'acconto:]
-Totale lordo: EUR XX
+TOTALE IMPONIBILE: EUR XX
 Ritenuta d'acconto 20%: -EUR XX
 ─────────────────
 TOTALE NETTO: EUR XX
 
-[Se NO IVA e NO ritenuta:]
+[Se NO IVA, NO ritenuta, NO sconto:]
 TOTALE: EUR XX
+
+[Se NOTE PAGAMENTO: rate:]
+PAGAMENTO A RATE: da definire
+
+[Se NOTE PAGAMENTO: acconto+saldo:]
+PAGAMENTO A RATE: Acconto + saldo
+
+[Se NOTE PAGAMENTO: canone mensile:]
+CANONE MENSILE: da definire
 
 Note: [breve nota se necessaria]
 Contatti: ${profile.nome_azienda || 'Azienda'} - ${profile.citta || 'Italia'}
@@ -128,6 +217,10 @@ REGOLE FORMATO:
 - Se c'e' un bundle aggiungilo come servizio separato es. "Bundle: Foto + Video"
 - Il RIEPILOGO viene sempre alla fine
 - L'IVA nel riepilogo dipende SOLO da quello che ha detto l'utente in chat
+- Se ci sono rimborsi: il blocco RIMBORSI SPESE viene dopo i SERVIZI e prima del RIEPILOGO
+- Se c'e' sconto: TOTALE LORDO appare prima della riga Sconto, TOTALE finale e' il netto
+- TOTALE IMPONIBILE e' usato SOLO per la ritenuta d'acconto fiscale
+- NOTE PAGAMENTO appare solo se l'utente ha esplicitamente menzionato rate, acconto+saldo o canone mensile
 
 REGOLE:
 - Usa sempre i servizi del listino. Non inventare prezzi.
@@ -175,7 +268,8 @@ router.post('/api/converti-recap', express.json(), async (req, res) => {
       max_tokens: 1024,
       messages: [{
         role: 'user',
-        content: `Converti questo riepilogo in un preventivo formattato. Rispondi SOLO con il preventivo, nient'altro, nessuna introduzione.
+        content: `Converti questo riepilogo in un preventivo formattato.
+Rispondi SOLO con il preventivo, nient'altro, nessuna introduzione.
 
 RIEPILOGO:
 ${recap}
@@ -192,22 +286,67 @@ DETTAGLI:
 - [dettaglio 2]
 PREZZO: EUR XX
 
+[Se ci sono rimborsi spese nel riepilogo:]
+RIMBORSI SPESE:
+RIMBORSO: [nome]
+DETTAGLIO: [dettaglio]
+TIPO: [Imponibile|Esente]
+IMPORTO: EUR XX   ← solo per spese vive, non per km
+
+[oppure per trasferta km:]
+RIMBORSO: Trasferta km
+DETTAGLIO: [N] km x EUR 0.25 = EUR [tot]
+TIPO: Imponibile
+
 RIEPILOGO:
-[Se nel riepilogo c'e' l'IVA:]
+[Se sconto senza IVA:]
+TOTALE LORDO: EUR XX
+Sconto [X%|'']: -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se sconto con IVA:]
+Imponibile: EUR XX
+IVA 22%: EUR XX
+TOTALE LORDO: EUR XX
+Sconto [X%|'']: -EUR XX
+─────────────────
+TOTALE: EUR XX
+
+[Se IVA senza sconto:]
 Imponibile: EUR XX
 IVA 22%: EUR XX
 ─────────────────
 TOTALE: EUR XX
 
-[Se nel riepilogo NON c'e' l'IVA:]
-TOTALE: EUR XX
-
-REGOLA IMPORTANTE: includi l'IVA SOLO se e' presente nel riepilogo originale. Non aggiungerla se non c'e'.
-Se nel riepilogo c'e' la ritenuta d'acconto:
-Totale lordo: EUR XX
+[Se ritenuta d'acconto:]
+TOTALE IMPONIBILE: EUR XX
 Ritenuta d'acconto 20%: -EUR XX
 ─────────────────
-TOTALE NETTO: EUR XX`
+TOTALE NETTO: EUR XX
+
+[Se NO IVA, NO ritenuta, NO sconto:]
+TOTALE: EUR XX
+
+[Se NOTE PAGAMENTO: rate nel riepilogo:]
+PAGAMENTO A RATE: da definire
+
+[Se NOTE PAGAMENTO: acconto+saldo nel riepilogo:]
+PAGAMENTO A RATE: Acconto + saldo
+
+[Se NOTE PAGAMENTO: canone mensile nel riepilogo:]
+CANONE MENSILE: da definire
+
+Note: [breve nota se presente nel riepilogo]
+Contatti: ${profile?.nome_azienda || 'Azienda'}
+
+REGOLE IMPORTANTI:
+- Includi IVA SOLO se presente nel riepilogo originale
+- Includi rimborsi SOLO se presenti nel riepilogo originale
+- Includi sconto SOLO se presente nel riepilogo originale
+- Includi NOTE PAGAMENTO SOLO se presenti nel riepilogo originale
+- Non inventare dati non presenti nel riepilogo
+- TOTALE IMPONIBILE e' usato SOLO per la ritenuta d'acconto fiscale`
       }]
     })
     trackAI({
