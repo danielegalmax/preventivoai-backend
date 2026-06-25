@@ -8,6 +8,8 @@ function parsaPreventivo(testo) {
   let voci = []
   let imponibile = ''
   let iva = ''
+  let totaleLordo = ''
+  let sconto = ''
   let totale = ''
   let note = ''
   let pagamento = ''
@@ -102,6 +104,10 @@ function parsaPreventivo(testo) {
     }
     if (riga.startsWith('Imponibile:')) { imponibile = riga.replace('Imponibile:', '').trim(); continue }
     if (riga.startsWith('IVA')) { iva = riga; continue }
+    if (riga.startsWith('TOTALE LORDO:')) { totaleLordo = riga.replace('TOTALE LORDO:', '').trim(); continue }
+    if (riga.startsWith('SCONTO:') || riga.startsWith('Sconto')) {
+      sconto = riga.replace(/^(SCONTO:|Sconto\s*\d*%?:?)\s*/i, '').trim(); continue
+    }
     if (riga.startsWith('TOTALE:')) { totale = riga.replace('TOTALE:', '').trim(); continue }
     if (riga.startsWith('Note:')) { note = riga.replace('Note:', '').trim(); continue }
     if (riga.startsWith('CANONE MENSILE:')) { canoneMensile = riga.replace('CANONE MENSILE:', '').trim(); continue }
@@ -152,7 +158,7 @@ function parsaPreventivo(testo) {
 
   if (servizioCorrente) voci.push(servizioCorrente)
   if (rimborsoCorrente) rimborsi.push(rimborsoCorrente)
-  return { titolo, data, validita, problema, voci, rimborsi, imponibile, iva, totale, note, pagamento, canoneMensile, canoneScadenza, pagamentoRate, contatti }
+  return { titolo, data, validita, problema, voci, rimborsi, imponibile, iva, totaleLordo, sconto, totale, note, pagamento, canoneMensile, canoneScadenza, pagamentoRate, contatti }
 }
 
 module.exports = { parsaPreventivo }
